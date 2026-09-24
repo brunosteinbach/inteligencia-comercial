@@ -1,0 +1,1409 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Inteligência Comercial Shoyu Express</title>
+<link rel="icon" type="image/png" href="icone.png">
+<script src="config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<style>
+:root{
+  color-scheme: light;
+  --bg:#f5f4f1; --surface:#ffffff; --surface-2:#faf9f7; --border:#e4e2dc; --border-strong:#cfccc3;
+  --text:#1b1a18; --text-2:#55534d; --muted:#8a877f;
+  --brand:#6f4320; --brand-ink:#ffffff; --brand-soft:#f3ebe3;
+  --s1:#2a78d6; --s2:#eb6834; --s-neutral:#b9b6ad;
+  --good:#1f7a3a; --good-bg:#e5f3e8; --warn:#9a6300; --warn-bg:#fdf1d6; --crit:#b42323; --crit-bg:#fbe5e3;
+  --info:#3b4a9a; --info-bg:#e8eaf7;
+  --shadow:0 1px 2px rgba(0,0,0,.05),0 1px 1px rgba(0,0,0,.03);
+  --radius:10px;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme: dark;
+    --bg:#121211; --surface:#1c1c1a; --surface-2:#232321; --border:#32312e; --border-strong:#46443f;
+    --text:#f3f2ee; --text-2:#c3c2b7; --muted:#8f8d85;
+    --brand:#c9925f; --brand-ink:#1b1a18; --brand-soft:#3a2c20;
+    --s1:#3987e5; --s2:#d95926; --s-neutral:#5a5852;
+    --good:#5cc27a; --good-bg:#1d3324; --warn:#e3a93a; --warn-bg:#3a2f16; --crit:#f07b72; --crit-bg:#401e1c;
+    --info:#9aa6ef; --info-bg:#252a47;
+    --shadow:none;
+  }
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--text);font:14px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;-webkit-font-smoothing:antialiased}
+button,input,select,textarea{font:inherit;color:inherit}
+.hidden{display:none!important}
+.num{font-variant-numeric:tabular-nums}
+
+/* ---------- login ---------- */
+#login{min-height:100vh;display:grid;place-items:center;padding:24px 16px}
+.login-card{width:100%;max-width:380px;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:28px;box-shadow:var(--shadow)}
+.brand{display:flex;align-items:center;gap:10px;font-weight:700;letter-spacing:.2px}
+.brand-mark{width:34px;height:34px;border-radius:8px;background:var(--brand);color:var(--brand-ink);display:grid;place-items:center;font-size:14px;font-weight:800}
+.login-card h1{font-size:20px;margin:18px 0 4px}
+.login-card p{margin:0 0 18px;color:var(--text-2)}
+label.f{display:block;font-size:12px;font-weight:600;color:var(--text-2);margin:12px 0 5px}
+input.i,select.i,textarea.i{width:100%;padding:9px 11px;border:1px solid var(--border-strong);border-radius:8px;background:var(--surface);outline:none}
+input.i:focus,select.i:focus,textarea.i:focus{border-color:var(--s1);box-shadow:0 0 0 3px color-mix(in srgb,var(--s1) 22%,transparent)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:9px 14px;border-radius:8px;border:1px solid var(--border-strong);background:var(--surface);cursor:pointer;font-weight:600;white-space:nowrap}
+.btn:hover{background:var(--surface-2)}
+.btn.primary{background:var(--brand);border-color:var(--brand);color:var(--brand-ink)}
+.btn.primary:hover{filter:brightness(1.07)}
+.btn.danger{color:var(--crit)}
+.btn.sm{padding:5px 10px;font-size:13px}
+.btn:disabled{opacity:.55;cursor:default}
+.btn.block{width:100%;margin-top:18px}
+.link{background:none;border:0;padding:0;color:var(--s1);cursor:pointer;font-weight:600}
+.msg{margin-top:12px;font-size:13px;padding:9px 11px;border-radius:8px}
+.msg.err{background:var(--crit-bg);color:var(--crit)}
+.msg.ok{background:var(--good-bg);color:var(--good)}
+.msg.info{background:var(--info-bg);color:var(--info)}
+.demo-roles{display:flex;gap:8px;margin-top:6px}
+.demo-roles .btn{flex:1}
+
+/* ---------- app shell ---------- */
+header.top{position:sticky;top:0;z-index:20;background:var(--surface);border-bottom:1px solid var(--border)}
+.top-inner{max-width:1320px;margin:0 auto;padding:10px 16px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.top-inner .brand{margin-right:auto}
+.app-title{font-size:18px;margin:0;letter-spacing:.6px;font-weight:800;color:var(--text)}
+.app-title::first-line{}
+.brand-title{font-weight:800;letter-spacing:.5px;font-size:14px;line-height:1.25}
+@media (max-width:600px){.app-title{font-size:14px}}
+.logo-top img{height:50px;width:auto;display:block}
+.logo-login img{height:90px;width:auto;display:block}
+.brand-sep{width:1px;height:30px;background:var(--border-strong);margin:0 4px}
+@media (max-width:600px){.logo-top img{height:34px}.brand-sep{display:none}}
+.brand small{display:block;font-weight:500;color:var(--muted);font-size:11px;letter-spacing:.3px;text-transform:uppercase}
+.userbox{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--text-2)}
+.pill{display:inline-flex;align-items:center;gap:5px;padding:2px 8px;border-radius:999px;font-size:11.5px;font-weight:700;letter-spacing:.2px;white-space:nowrap}
+.pill.admin{background:var(--brand-soft);color:var(--brand)}
+.pill.view{background:var(--info-bg);color:var(--info)}
+.pill.demo{background:var(--warn-bg);color:var(--warn)}
+nav.tabs{max-width:1320px;margin:0 auto;padding:0 16px;display:flex;gap:2px;overflow-x:auto}
+nav.tabs button{border:0;background:none;padding:10px 12px;font-weight:600;color:var(--text-2);border-bottom:2px solid transparent;cursor:pointer;white-space:nowrap}
+nav.tabs button[aria-selected="true"]{color:var(--text);border-bottom-color:var(--brand)}
+nav.tabs .count{margin-left:6px;background:var(--crit-bg);color:var(--crit);border-radius:999px;padding:0 7px;font-size:11.5px}
+
+.filters{max-width:1320px;margin:0 auto;padding:14px 16px 0;display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end}
+.filters .fg{display:flex;flex-direction:column;gap:4px;min-width:150px}
+.filters .fg span{font-size:11.5px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px}
+.filters select{padding:7px 10px;border:1px solid var(--border-strong);border-radius:8px;background:var(--surface)}
+.filters .note{font-size:12.5px;color:var(--muted);margin-left:auto;align-self:center}
+
+main{max-width:1320px;margin:0 auto;padding:14px 16px 60px}
+.grid{display:grid;gap:14px}
+.g4{grid-template-columns:repeat(4,minmax(0,1fr))}
+.g5{grid-template-columns:repeat(5,minmax(0,1fr))}
+.g5 .kpi .val{font-size:22px}
+table.t tfoot td{border-top:2px solid var(--border-strong);border-bottom:0}
+tr.click-per:hover{background:var(--surface-2)}
+.g2{grid-template-columns:repeat(2,minmax(0,1fr))}
+.g32{grid-template-columns:minmax(0,3fr) minmax(0,2fr)}
+@media (max-width:1000px){.g5{grid-template-columns:repeat(2,minmax(0,1fr))}.g4{grid-template-columns:repeat(2,minmax(0,1fr))}.g2,.g32{grid-template-columns:minmax(0,1fr)}}
+@media (max-width:520px){.g4,.g5{grid-template-columns:minmax(0,1fr)}}
+.card{overflow-x:auto;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;box-shadow:var(--shadow);min-width:0}
+.card h2{font-size:15px;margin:0 0 2px}
+.card .sub{font-size:12.5px;color:var(--muted);margin:0 0 12px}
+.card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.kpi .lbl{font-size:12px;font-weight:600;color:var(--text-2)}
+.kpi .val{font-size:26px;font-weight:700;margin:4px 0 2px;letter-spacing:-.3px}
+.kpi .cmp{font-size:12.5px;color:var(--muted)}
+.delta{font-weight:700;white-space:nowrap}
+.delta.up{color:var(--good)} .delta.down{color:var(--crit)} .delta.flat{color:var(--muted)}
+.chart-box{position:relative;height:280px}
+.chart-box.tall{height:340px}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12.5px;color:var(--text-2);margin:-4px 0 8px}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px;vertical-align:-1px}
+
+table.t{width:100%;border-collapse:collapse;font-size:13px}
+table.t th{text-align:left;font-size:11.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);font-weight:700;padding:8px 8px;border-bottom:1px solid var(--border);white-space:nowrap;position:sticky;top:0;background:var(--surface)}
+table.t th.sort{cursor:pointer;user-select:none}
+table.t th.sort:hover{color:var(--text)}
+table.t td{padding:8px 8px;border-bottom:1px solid var(--border);vertical-align:middle}
+table.t tr:last-child td{border-bottom:0}
+table.t td.r,table.t th.r{text-align:right}
+table.t tbody tr.click{cursor:pointer}
+table.t tbody tr.click:hover{background:var(--surface-2)}
+.rank{width:26px;color:var(--muted);font-weight:700}
+.tbl-wrap{overflow:auto;max-height:620px}
+.bar-cell{position:relative}
+.minibar{height:6px;border-radius:3px;background:var(--s1);margin-top:4px;opacity:.85}
+.cname{font-weight:600}
+.ccode{color:var(--muted);font-size:12px}
+.empty{padding:28px 10px;text-align:center;color:var(--muted)}
+
+.badge{display:inline-flex;align-items:center;gap:5px;padding:2px 8px;border-radius:999px;font-size:12px;font-weight:700;white-space:nowrap}
+.badge.ok{background:var(--good-bg);color:var(--good)}
+.badge.warn{background:var(--warn-bg);color:var(--warn)}
+.badge.crit{background:var(--crit-bg);color:var(--crit)}
+.badge.gray{background:var(--surface-2);color:var(--text-2);border:1px solid var(--border)}
+.badge.fechou{background:#ececec;color:#3a3a3a}
+.badge.devendo{background:var(--crit-bg);color:var(--crit)}
+.badge.outro{background:var(--info-bg);color:var(--info)}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .badge.fechou{background:#2e2e2c;color:#d8d6cf}}
+
+.toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+.toolbar input.i{max-width:320px}
+.seg{display:inline-flex;border:1px solid var(--border-strong);border-radius:8px;overflow:hidden}
+.seg button{border:0;background:var(--surface);padding:6px 11px;font-weight:600;font-size:13px;cursor:pointer;color:var(--text-2)}
+.seg button+button{border-left:1px solid var(--border-strong)}
+.seg button[aria-pressed="true"]{background:var(--text);color:var(--surface)}
+
+/* drawer */
+#drawer-bg{position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:40}
+#drawer{position:fixed;top:0;right:0;bottom:0;width:min(720px,100%);background:var(--bg);z-index:41;overflow:auto;box-shadow:-8px 0 24px rgba(0,0,0,.15)}
+.drawer-head{position:sticky;top:0;background:var(--surface);border-bottom:1px solid var(--border);padding:14px 16px;display:flex;gap:12px;align-items:flex-start;z-index:2}
+.drawer-head h3{margin:0;font-size:17px}
+.drawer-body{padding:14px 16px;display:grid;gap:14px}
+.facts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+@media (max-width:560px){.facts{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}}
+.fact{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px}
+.fact .lbl{font-size:11.5px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.3px}
+.fact .val{font-weight:700;font-size:16px;margin-top:2px}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px;vertical-align:0}
+.fg-inline{display:flex;flex-direction:column;gap:3px}
+table.heat td{border-bottom:1px solid var(--surface)}
+table.heat tr.empresa td{border-top:2px solid var(--border-strong);background:var(--surface-2)}
+.prod-layout{display:grid;grid-template-columns:300px minmax(0,1fr);gap:14px;align-items:start}
+.prod-list{position:sticky;top:110px;max-height:calc(100vh - 124px);display:flex;flex-direction:column;overflow:hidden}
+.prod-list .seg{display:flex;flex-shrink:0}
+.prod-list>input,.prod-list>.help{flex-shrink:0}
+.prod-items{overflow:auto;margin:0 -8px;padding:0 8px;flex:1}
+.prod-item{display:block;width:100%;text-align:left;border:0;background:none;padding:8px 8px;border-radius:8px;cursor:pointer;border-bottom:1px solid var(--border)}
+.prod-item:hover{background:var(--surface-2)}
+.prod-item.on{background:color-mix(in srgb,var(--s1) 12%,var(--surface));box-shadow:inset 3px 0 0 var(--s1)}
+.pi-name{display:block;font-weight:600;font-size:13px}
+.pi-meta{display:block;font-size:12px;color:var(--muted)}
+.prod-item .minibar{display:block;height:4px;margin-top:4px}
+@media (max-width:900px){.prod-layout{grid-template-columns:minmax(0,1fr)}.prod-list{position:static;max-height:420px}}
+.status-opts{display:flex;gap:8px;flex-wrap:wrap}
+.status-opts label{display:flex;align-items:center;gap:6px;border:1px solid var(--border-strong);border-radius:8px;padding:7px 10px;cursor:pointer;background:var(--surface);font-weight:600;font-size:13px}
+.status-opts input{accent-color:var(--brand)}
+.meta-line{font-size:12px;color:var(--muted);margin-top:6px}
+
+/* upload */
+.drop{border:2px dashed var(--border-strong);border-radius:12px;padding:30px 16px;text-align:center;background:var(--surface);cursor:pointer;transition:.15s}
+.drop.over{border-color:var(--s1);background:color-mix(in srgb,var(--s1) 7%,var(--surface))}
+.drop strong{display:block;font-size:15px;margin-bottom:4px}
+.drop span{color:var(--muted);font-size:13px}
+.preview{border:1px solid var(--border);border-radius:10px;padding:14px;background:var(--surface-2);margin-top:12px}
+.preview h4{margin:0 0 8px;font-size:14px;word-break:break-all}
+.kv{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;font-size:13px}
+@media (max-width:700px){.kv{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}}
+.kv div b{display:block;font-size:11.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.3px}
+.row-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;align-items:center}
+
+.banner{max-width:1320px;margin:10px auto 0;padding:0 16px}
+.banner div{background:var(--warn-bg);color:var(--warn);border-radius:8px;padding:8px 12px;font-size:13px}
+.loading{padding:60px 16px;text-align:center;color:var(--muted)}
+.toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:var(--text);color:var(--surface);padding:10px 16px;border-radius:8px;font-weight:600;z-index:60;box-shadow:0 6px 20px rgba(0,0,0,.2)}
+.help{font-size:12.5px;color:var(--muted)}
+.split{display:flex;gap:14px;flex-wrap:wrap}
+.split>*{flex:1;min-width:260px}
+</style>
+</head>
+<body>
+
+<!-- ================= LOGIN ================= -->
+<section id="login" class="hidden">
+  <div class="login-card">
+    <picture class="logo-login"><source srcset="logo-escuro.png" media="(prefers-color-scheme: dark)"><img src="logo.png" alt="Shoyu Express · Produtos Orientais"></picture>
+    <div class="brand-title" style="margin-top:14px">INTELIGÊNCIA COMERCIAL SHOYU EXPRESS</div>
+    <h1>Entrar</h1>
+    <p id="login-sub">Use o e-mail e a senha que o administrador cadastrou.</p>
+    <form id="login-form">
+      <label class="f" for="lg-email">E-mail</label>
+      <input class="i" id="lg-email" type="email" autocomplete="username" required>
+      <label class="f" for="lg-pass">Senha</label>
+      <input class="i" id="lg-pass" type="password" autocomplete="current-password" required>
+      <button class="btn primary block" type="submit" id="lg-btn">Entrar</button>
+    </form>
+    <div id="demo-login" class="hidden">
+      <label class="f">Entrar como</label>
+      <div class="demo-roles">
+        <button class="btn primary" data-demo="admin">Administrador</button>
+        <button class="btn" data-demo="visualizador">Visualizador</button>
+      </div>
+    </div>
+    <div style="margin-top:14px;font-size:13px" id="forgot-wrap"><button class="link" id="forgot">Esqueci minha senha</button></div>
+    <div id="login-msg"></div>
+  </div>
+</section>
+
+<!-- ================= APP ================= -->
+<section id="app" class="hidden">
+  <header class="top">
+    <div class="top-inner">
+      <div class="brand"><picture class="logo-top"><source srcset="logo-escuro.png" media="(prefers-color-scheme: dark)"><img src="logo.png" alt="Shoyu Express"></picture><span class="brand-sep"></span><h1 class="app-title">INTELIGÊNCIA COMERCIAL SHOYU EXPRESS</h1></div>
+      <div class="userbox"><span id="u-email"></span><span id="u-role"></span><button class="btn sm" id="logout">Sair</button></div>
+    </div>
+    <nav class="tabs" role="tablist" id="tabs">
+      <button data-tab="painel" aria-selected="true">Painel</button>
+      <button data-tab="vendedores">Vendedores</button>
+      <button data-tab="produtos">Produtos</button>
+      <button data-tab="clientes">Clientes</button>
+      <button data-tab="alertas">Alertas<span class="count hidden" id="alert-count"></span></button>
+      <button data-tab="arquivos" class="adm">Arquivos</button>
+      <button data-tab="usuarios" class="adm">Usuários</button>
+    </nav>
+  </header>
+  <div class="banner hidden" id="demo-banner"><div><b>Modo demonstração:</b> os dados ficam só neste navegador. Para usar com a equipe, preencha o <code>config.js</code> com os dados do Firebase (veja o guia).</div></div>
+
+  <div class="filters" id="filters">
+    <label class="fg"><span>Ano</span><select id="f-ano"></select></label>
+    <label class="fg"><span>Mês</span><select id="f-mes"></select></label>
+    <label class="fg"><span>Comparar com</span><select id="f-cmp"></select></label>
+    <label class="fg" id="fg-vend"><span>Vendedor</span><select id="f-vend"></select></label>
+    <div class="note" id="f-note"></div>
+  </div>
+
+  <main id="main"><div class="loading">Carregando…</div></main>
+</section>
+
+<div id="drawer-bg" class="hidden"></div>
+<aside id="drawer" class="hidden" aria-modal="true" role="dialog"></aside>
+
+<script type="module">
+/* =====================================================================
+   Shoyu Express · Painel de vendas e clientes
+   ===================================================================== */
+const CFG = window.FIREBASE_CONFIG || {};
+const DEMO = !CFG.apiKey || /COLE_AQUI/i.test(CFG.apiKey);
+const FB_VER = '10.12.2';
+const ALERTA_DIAS = 14;   // mais de 2 semanas sem compra = alerta
+const ATENCAO_DIAS = 7;   // mais de 1 semana = atenção
+const PARTE_MAX = 300000; // caracteres por documento (limite Firestore 1 MB, com folga para acentos)
+
+/* ---------------- utilidades ---------------- */
+const $ = (s, el = document) => el.querySelector(s);
+const $$ = (s, el = document) => [...el.querySelectorAll(s)];
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmtBRL = v => (v ?? 0).toLocaleString('pt-BR', {style:'currency', currency:'BRL'});
+const fmtBRLk = v => { const a = Math.abs(v); if (a >= 1e6) return 'R$ ' + (v/1e6).toLocaleString('pt-BR',{maximumFractionDigits:2}) + ' mi'; if (a >= 1e3) return 'R$ ' + (v/1e3).toLocaleString('pt-BR',{maximumFractionDigits:0}) + ' mil'; return fmtBRL(v); };
+const fmtN = (v, d = 0) => (v ?? 0).toLocaleString('pt-BR', {minimumFractionDigits:d, maximumFractionDigits:d});
+const fmtPct = v => (v > 0 ? '+' : '') + v.toLocaleString('pt-BR', {maximumFractionDigits:1}) + '%';
+const MESES = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+const MESES_L = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
+const mesLabel = m => { const [y, mm] = m.split('-'); return MESES[+mm-1] + '/' + y; };
+const mesLabelL = m => { const [y, mm] = m.split('-'); return MESES_L[+mm-1] + ' de ' + y; };
+const isoToBR = iso => iso ? iso.slice(8,10) + '/' + iso.slice(5,7) + '/' + iso.slice(0,4) : '—';
+const isoToBRc = iso => iso ? iso.slice(8,10) + '/' + iso.slice(5,7) : '—';
+const dayNum = iso => Math.round(Date.UTC(+iso.slice(0,4), +iso.slice(5,7)-1, +iso.slice(8,10)) / 864e5);
+const diasEntre = (a, b) => dayNum(b) - dayNum(a);
+const lastDay = (y, m) => new Date(Date.UTC(y, m, 0)).getUTCDate();
+function toast(t){ const d = document.createElement('div'); d.className='toast'; d.textContent=t; document.body.appendChild(d); setTimeout(()=>d.remove(), 2600); }
+function deltaHTML(a, b){
+  if (b == null) return '';
+  if (!b) return a ? '<span class="delta up">novo</span>' : '<span class="delta flat">—</span>';
+  const p = (a - b) / Math.abs(b) * 100;
+  const cls = Math.abs(p) < 0.05 ? 'flat' : p > 0 ? 'up' : 'down';
+  const arrow = cls === 'up' ? '▲' : cls === 'down' ? '▼' : '•';
+  return `<span class="delta ${cls}">${arrow} ${fmtPct(p)}</span>`;
+}
+
+/* =====================================================================
+   LEITURA DO RELATÓRIO (HTML exportado — FastReport)
+   ===================================================================== */
+function parseRelatorio(text, fileName){
+  const doc = new DOMParser().parseFromString(text, 'text/html');
+  const body = (doc.body?.textContent || '').replace(/\u00a0/g, ' ');
+  const mp = body.match(/Per[ií]odo entre (\d{2})\/(\d{2})\/(\d{4}) e (\d{2})\/(\d{2})\/(\d{4})/);
+  if (!mp) throw new Error('Não encontrei a linha "Período entre ... e ..." neste arquivo. Confira se é o "Relatório de Análise de Vendas - Vendedor - Cliente (Detalhado) - Produto" exportado em HTML.');
+  const inicio = `${mp[3]}-${mp[2]}-${mp[1]}`, fim = `${mp[6]}-${mp[5]}-${mp[4]}`;
+  const me = body.match(/Emiss[ãa]o:\s*(\d{2}\/\d{2}\/\d{4}(?: \d{2}:\d{2}(?::\d{2})?)?)/);
+  const isNum = s => /^-?[\d.]+,\d+$/.test(s);
+  const P = s => parseFloat(s.replace(/\./g, '').replace(',', '.'));
+  const V = [], C = [], Pr = [], vIdx = {}, cIdx = {}, pIdx = {}, R = [];
+  let ctx = null, vend = null, cli = null, ultimoTotal = null;
+  for (const tr of doc.querySelectorAll('tr')) {
+    const t = [...tr.children].map(td => td.textContent.replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim()).filter(Boolean);
+    if (!t.length) continue;
+    if (t[0] === 'Vendedor' && t[1] === 'Nome Vendedor') { ctx = 'v'; continue; }
+    if (t[0] === 'Cliente' && t[1] === 'Nome Cliente') { ctx = 'c'; continue; }
+    if (t.length === 2 && /^\d+$/.test(t[0]) && ctx) {
+      if (ctx === 'v') vend = [t[0], t[1]]; else cli = [t[0], t[1]];
+      ctx = null; continue;
+    }
+    if (t.length === 5 && isNum(t[3]) && isNum(t[4])) {
+      const vc = vend ? vend[0] : '?', vn = vend ? vend[1] : t[0];
+      const cc = cli ? cli[0] : t[1], cn = cli ? cli[1] : t[1];
+      if (!(vc in vIdx)) { vIdx[vc] = V.length; V.push([vc, vn]); }
+      if (!(cc in cIdx)) { cIdx[cc] = C.length; C.push([cc, cn]); }
+      if (!(t[2] in pIdx)) { pIdx[t[2]] = Pr.length; Pr.push(t[2]); }
+      R.push(vIdx[vc], cIdx[cc], pIdx[t[2]], P(t[3]), P(t[4]));
+      continue;
+    }
+    if (t.length === 2 && isNum(t[0]) && isNum(t[1])) { ultimoTotal = P(t[1]); continue; }
+  }
+  if (!R.length) throw new Error('O arquivo foi lido, mas não encontrei nenhuma linha de venda. Confira se é o relatório detalhado por produto.');
+  let total = 0, qtd = 0;
+  for (let i = 0; i < R.length; i += 5) { qtd += R[i+3]; total += R[i+4]; }
+  total = Math.round(total * 100) / 100;
+  const [y1, m1, d1] = inicio.split('-').map(Number), [y2, m2, d2] = fim.split('-').map(Number);
+  const tipo = (d1 === 1 && y1 === y2 && m1 === m2 && d2 === lastDay(y2, m2)) ? 'mensal' : 'semanal';
+  return { nomeArquivo: fileName, inicio, fim, emissao: me ? me[1] : '', tipo, mes: mesDoPeriodo(inicio, fim),
+    total, qtd, linhas: R.length / 5, totalRelatorio: ultimoTotal,
+    vendedores: V.length, clientes: C.length, produtos: Pr.length,
+    payload: { v: V, c: C, p: Pr, r: R } };
+}
+// mês ao qual o período pertence: o mês com mais dias dentro do período
+function mesDoPeriodo(inicio, fim){
+  const cont = {}; let d = dayNum(inicio); const f = dayNum(fim);
+  for (; d <= f; d++) { const dt = new Date(d * 864e5); const k = dt.getUTCFullYear() + '-' + String(dt.getUTCMonth()+1).padStart(2,'0'); cont[k] = (cont[k]||0) + 1; }
+  return Object.entries(cont).sort((a,b) => b[1]-a[1] || (a[0] < b[0] ? -1 : 1))[0][0];
+}
+const idArquivo = m => (m.tipo === 'mensal' ? 'M_' + m.mes : 'S_' + m.inicio + '_' + m.fim);
+
+/* =====================================================================
+   ARMAZENAMENTO — Firebase (produção) ou navegador (demonstração)
+   ===================================================================== */
+function makeDemoStore(){
+  const KEY = 'shoyu_demo_v1';
+  let mem;
+  const load = () => { if (mem) return mem; try { mem = JSON.parse(localStorage.getItem(KEY)) || null; } catch { mem = null; } mem = mem || {arquivos:{}, partes:{}, status:{}, usuarios:{}}; return mem; };
+  const save = () => { try { localStorage.setItem(KEY, JSON.stringify(mem)); } catch (e) { toast('Navegador sem espaço para guardar a demonstração — os dados ficam só até fechar a página.'); } };
+  let user = null, authCb = () => {};
+  return {
+    demo: true,
+    async init(){ load(); try { const u = JSON.parse(sessionStorage.getItem(KEY+'_user')); if (u) user = u; } catch {} setTimeout(() => authCb(user), 0); },
+    onAuth(cb){ authCb = cb; },
+    async loginDemo(papel){ user = {uid:'demo-'+papel, email: papel === 'admin' ? 'admin@demonstracao' : 'vendedor@demonstracao', papel}; try { sessionStorage.setItem(KEY+'_user', JSON.stringify(user)); } catch {} authCb(user); },
+    async logout(){ user = null; try { sessionStorage.removeItem(KEY+'_user'); } catch {} authCb(null); },
+    async perfil(){ return user ? {papel: user.papel, email: user.email} : null; },
+    async listArquivos(){ return Object.entries(load().arquivos).map(([id, m]) => ({id, ...m})); },
+    async getPayload(id){ return JSON.parse(load().partes[id]); },
+    async saveArquivo(id, meta, payload){ load(); mem.arquivos[id] = meta; mem.partes[id] = JSON.stringify(payload); save(); },
+    async deleteArquivo(id){ load(); delete mem.arquivos[id]; delete mem.partes[id]; save(); },
+    async listStatus(){ return {...load().status}; },
+    async setStatus(cc, obj){ load(); if (!obj.status && !obj.obs) delete mem.status[cc]; else mem.status[cc] = obj; save(); },
+    async listUsuarios(){ return Object.entries(load().usuarios).map(([uid, u]) => ({uid, ...u})); },
+    async criarUsuario(email, senha, nome, papel){ load(); const uid = 'u' + Date.now(); mem.usuarios[uid] = {email, nome, papel}; save(); },
+    async setPapel(uid, papel){ load(); mem.usuarios[uid].papel = papel; save(); },
+    async removerUsuario(uid){ load(); delete mem.usuarios[uid]; save(); },
+    async resetSenha(){ throw new Error('Não disponível no modo demonstração.'); },
+    currentEmail(){ return user?.email || ''; }
+  };
+}
+
+async function makeFirebaseStore(){
+  const base = `https://www.gstatic.com/firebasejs/${FB_VER}/`;
+  const [{ initializeApp }, A, F] = await Promise.all([
+    import(base + 'firebase-app.js'), import(base + 'firebase-auth.js'), import(base + 'firebase-firestore.js')
+  ]);
+  const app = initializeApp(CFG);
+  const auth = A.getAuth(app);
+  const db = F.getFirestore(app);
+  let authCb = () => {};
+  return {
+    demo: false,
+    async init(){ A.onAuthStateChanged(auth, u => authCb(u)); },
+    onAuth(cb){ authCb = cb; },
+    async login(email, senha){ await A.signInWithEmailAndPassword(auth, email, senha); },
+    async logout(){ await A.signOut(auth); },
+    async resetSenha(email){ await A.sendPasswordResetEmail(auth, email); },
+    currentEmail(){ return auth.currentUser?.email || ''; },
+    async perfil(){
+      const u = auth.currentUser; if (!u) return null;
+      const ref = F.doc(db, 'usuarios', u.uid);
+      const s = await F.getDoc(ref);
+      if (s.exists()) return s.data();
+      // primeiro acesso do administrador principal (e-mail listado nas regras)
+      try { const p = {email: u.email, nome: '', papel: 'admin'}; await F.setDoc(ref, p); return p; }
+      catch { return null; }
+    },
+    async listArquivos(){ const s = await F.getDocs(F.collection(db, 'arquivos')); return s.docs.map(d => ({id: d.id, ...d.data()})); },
+    async getPayload(id){
+      const s = await F.getDocs(F.collection(db, 'arquivos', id, 'partes'));
+      const partes = s.docs.map(d => ({n: +d.id, d: d.data().d})).sort((a,b) => a.n - b.n);
+      return JSON.parse(partes.map(p => p.d).join(''));
+    },
+    async saveArquivo(id, meta, payload){
+      const str = JSON.stringify(payload);
+      const partes = []; for (let i = 0; i < str.length; i += PARTE_MAX) partes.push(str.slice(i, i + PARTE_MAX));
+      const antigas = await F.getDocs(F.collection(db, 'arquivos', id, 'partes'));
+      for (const d of antigas.docs) if (+d.id >= partes.length) await F.deleteDoc(d.ref);
+      for (let i = 0; i < partes.length; i++) await F.setDoc(F.doc(db, 'arquivos', id, 'partes', String(i)), {d: partes[i]});
+      await F.setDoc(F.doc(db, 'arquivos', id), {...meta, partes: partes.length});
+    },
+    async deleteArquivo(id){
+      const antigas = await F.getDocs(F.collection(db, 'arquivos', id, 'partes'));
+      for (const d of antigas.docs) await F.deleteDoc(d.ref);
+      await F.deleteDoc(F.doc(db, 'arquivos', id));
+    },
+    async listStatus(){ const s = await F.getDocs(F.collection(db, 'status')); const o = {}; s.docs.forEach(d => o[d.id] = d.data()); return o; },
+    async setStatus(cc, obj){ const ref = F.doc(db, 'status', cc); if (!obj.status && !obj.obs) await F.deleteDoc(ref); else await F.setDoc(ref, obj); },
+    async listUsuarios(){ const s = await F.getDocs(F.collection(db, 'usuarios')); return s.docs.map(d => ({uid: d.id, ...d.data()})); },
+    async criarUsuario(email, senha, nome, papel){
+      // usa uma segunda instância para não desconectar o administrador
+      const sec = initializeApp(CFG, 'cadastro-' + Date.now());
+      const secAuth = A.getAuth(sec);
+      try {
+        const cred = await A.createUserWithEmailAndPassword(secAuth, email, senha);
+        await F.setDoc(F.doc(db, 'usuarios', cred.user.uid), {email: email.toLowerCase(), nome, papel});
+        await A.signOut(secAuth);
+      } finally { try { const { deleteApp } = await import(base + 'firebase-app.js'); await deleteApp(sec); } catch {} }
+    },
+    async setPapel(uid, papel){ await F.updateDoc(F.doc(db, 'usuarios', uid), {papel}); },
+    async removerUsuario(uid){ await F.deleteDoc(F.doc(db, 'usuarios', uid)); }
+  };
+}
+
+function erroFirebase(e){
+  const c = e?.code || '';
+  const m = {
+    'auth/invalid-credential':'E-mail ou senha incorretos.', 'auth/wrong-password':'E-mail ou senha incorretos.', 'auth/user-not-found':'E-mail ou senha incorretos.',
+    'auth/invalid-email':'E-mail inválido.', 'auth/too-many-requests':'Muitas tentativas. Aguarde alguns minutos e tente de novo.',
+    'auth/email-already-in-use':'Já existe um usuário com este e-mail.', 'auth/weak-password':'A senha precisa ter pelo menos 6 caracteres.',
+    'auth/network-request-failed':'Sem conexão com a internet.', 'permission-denied':'Sem permissão para esta ação.',
+    'auth/unauthorized-domain':'Este endereço não está autorizado no Firebase (Authentication > Configurações > Domínios autorizados).'
+  };
+  return m[c] || e?.message || String(e);
+}
+
+/* =====================================================================
+   ESTADO E CÁLCULOS
+   ===================================================================== */
+const S = {
+  store: null, perfil: null, email: '',
+  arquivos: [], payloads: {}, status: {},
+  meses: [], mesInfo: {}, fatos: {}, // fatos[mes] = linhas efetivas do mês
+  vendNome: {}, cliNome: {}, recencia: {}, dataRef: null,
+  tab: 'painel', ano: '', mesSel: '', mes: null, cmp: '', vend: '',
+  cliSort: {k:'val', dir:-1}, vA: '', vB: '', vendSort: {k:'total', dir:-1}, vendProdF: 'todos', vendProdQ: '', prodModo: 'produto', prodSel: {produto: '', linha: ''}, prodBusca: '', prodUniv: 'ativos', cliBusca: '', cliFiltro: 'todos', rankN: 10
+};
+const isAdmin = () => S.perfil?.papel === 'admin';
+
+function decode(payload){
+  const {v, c, p, r} = payload, out = [];
+  for (let i = 0; i < r.length; i += 5) {
+    const V = v[r[i]], C = c[r[i+1]];
+    out.push({vc: V[0], vn: V[1], cc: C[0], cn: C[1], p: p[r[i+2]], q: r[i+3], val: r[i+4]});
+  }
+  return out;
+}
+
+function recalcular(){
+  const arqs = S.arquivos.filter(a => S.payloads[a.id]);
+  const porMes = {};
+  for (const a of arqs) (porMes[a.mes] ||= []).push(a);
+  S.meses = Object.keys(porMes).sort();
+  S.mesInfo = {}; S.fatos = {};
+  // nomes (mais recentes prevalecem)
+  S.vendNome = {}; S.cliNome = {}; S.recencia = {}; S.dataRef = null;
+  const ordem = [...arqs].sort((a,b) => a.fim < b.fim ? -1 : 1);
+  for (const a of ordem) {
+    const rows = S.payloads[a.id];
+    if (!S.dataRef || a.fim > S.dataRef) S.dataRef = a.fim;
+    for (const r of rows) {
+      S.vendNome[r.vc] = r.vn; S.cliNome[r.cc] = r.cn;
+      const rc = S.recencia[r.cc];
+      if (r.val > 0 || r.q > 0) {
+        if (!rc || a.fim > rc.fim || (a.fim === rc.fim && a.inicio > rc.inicio)) S.recencia[r.cc] = {fim: a.fim, inicio: a.inicio, tipo: a.tipo, vc: r.vc};
+      }
+    }
+  }
+  for (const m of S.meses) {
+    const lst = porMes[m];
+    const mensal = lst.find(a => a.tipo === 'mensal');
+    const semanais = lst.filter(a => a.tipo === 'semanal').sort((a,b) => a.inicio < b.inicio ? -1 : 1);
+    const usados = mensal ? [mensal] : semanais;
+    S.mesInfo[m] = { mensal: !!mensal, semanais, usados, ate: usados.reduce((x, a) => a.fim > x ? a.fim : x, ''), inicio: usados.reduce((x, a) => !x || a.inicio < x ? a.inicio : x, '') };
+    S.mesInfo[m].parcial = !mensal;
+    S.fatos[m] = usados.flatMap(a => S.payloads[a.id]);
+  }
+}
+function fatosFiltrados(m){ const f = S.fatos[m] || []; return S.vend ? f.filter(r => r.vc === S.vend) : f; }
+/* períodos: 'A' = todos os anos · 'Y:2026' = ano · 'M:2026-01' = mês · 'YS:2025' = mesmos meses do período principal em outro ano */
+const isMes = k => !!k && k.startsWith('M:');
+const anosDisp = () => [...new Set(S.meses.map(m => m.slice(0, 4)))].sort();
+function perMeses(k){
+  if (!k) return [];
+  if (k === 'A') return S.meses;
+  const [t, v] = k.split(':');
+  if (t === 'M') return S.meses.includes(v) ? [v] : [];
+  if (t === 'Y') return S.meses.filter(m => m.startsWith(v));
+  if (t === 'YS') { const nums = new Set(perMeses(S.mes).map(m => m.slice(5))); return S.meses.filter(m => m.startsWith(v) && nums.has(m.slice(5))); }
+  return [];
+}
+function perLabel(k){
+  if (!k) return '';
+  if (k === 'A') return 'Todos os anos';
+  const [t, v] = k.split(':');
+  if (t === 'M') return mesLabel(v);
+  if (t === 'Y') return v;
+  const ms = perMeses(k).map(m => +m.slice(5)); if (!ms.length) return v;
+  return (ms.length > 1 ? MESES[Math.min(...ms) - 1] + '–' : '') + MESES[Math.max(...ms) - 1] + '/' + v;
+}
+const perLabelCurto = k => k === 'A' ? 'Total' : perLabel(k);
+function perFatos(k){ return perMeses(k).flatMap(m => fatosFiltrados(m)); }
+function definirPeriodo(manterCmp){
+  S.mes = !S.ano ? 'A' : S.mesSel ? 'M:' + S.mesSel : 'Y:' + S.ano;
+  const ops = opcoesComparacao().map(o => o[0]);
+  if (manterCmp && ops.includes(S.cmp)) return;
+  // comparação padrão: mês anterior (para mês) ou ano anterior nos mesmos meses (para ano)
+  if (S.mes === 'A') S.cmp = '';
+  else if (isMes(S.mes)) { const i = S.meses.indexOf(S.mesSel); S.cmp = i > 0 ? 'M:' + S.meses[i - 1] : ''; }
+  else { const prev = String(+S.ano - 1); S.cmp = ops.includes('YS:' + prev) ? 'YS:' + prev : ops.includes('Y:' + prev) ? 'Y:' + prev : ''; }
+}
+function agg(rows){
+  const o = {total: 0, qtd: 0, cli: new Map(), vend: new Map(), prod: new Map()};
+  for (const r of rows) {
+    o.total += r.val; o.qtd += r.q;
+    const c = o.cli.get(r.cc) || {val: 0, q: 0, itens: 0, vend: {}}; c.val += r.val; c.q += r.q; c.itens++; c.vend[r.vc] = (c.vend[r.vc]||0) + r.val; o.cli.set(r.cc, c);
+    o.vend.set(r.vc, (o.vend.get(r.vc) || 0) + r.val);
+    const p = o.prod.get(r.p) || {val: 0, q: 0, cli: new Set()}; p.val += r.val; p.q += r.q; p.cli.add(r.cc); o.prod.set(r.p, p);
+  }
+  o.nCli = [...o.cli.values()].filter(c => c.val > 0).length;
+  return o;
+}
+function situacao(cc){
+  const st = S.status[cc];
+  if (st?.status) return {tipo: st.status, st};
+  const rc = S.recencia[cc];
+  if (!rc || !S.dataRef) return {tipo: 'sem', dias: null};
+  const dias = diasEntre(rc.fim, S.dataRef);
+  if (dias > ALERTA_DIAS) return {tipo: 'alerta', dias, rc};
+  if (dias > ATENCAO_DIAS) return {tipo: 'atencao', dias, rc};
+  return {tipo: 'ativo', dias, rc};
+}
+const STATUS_TXT = {fechou: 'Fechou', devendo: 'Devendo', outro: 'Outro motivo'};
+function badgeSit(cc, curto){
+  const s = situacao(cc);
+  if (s.tipo in STATUS_TXT) return `<span class="badge ${s.tipo}" title="${esc(s.st.obs || '')}">${s.tipo === 'fechou' ? '■' : s.tipo === 'devendo' ? '$' : '•'} ${STATUS_TXT[s.tipo]}</span>`;
+  if (s.tipo === 'alerta') return `<span class="badge crit">⚠ ${curto ? s.dias + ' dias' : 'Sem compra há ' + s.dias + ' dias'}</span>`;
+  if (s.tipo === 'atencao') return `<span class="badge warn">◷ ${s.dias} dias</span>`;
+  if (s.tipo === 'ativo') return `<span class="badge ok">✓ Ativo</span>`;
+  return `<span class="badge gray">—</span>`;
+}
+function ultimaCompraTxt(cc){
+  const rc = S.recencia[cc]; if (!rc) return '—';
+  return rc.tipo === 'semanal' ? `sem. ${isoToBRc(rc.inicio)}–${isoToBRc(rc.fim)}` : `${mesLabel(rc.fim.slice(0,7))} (mês)`;
+}
+function vendAtual(cc){ return S.recencia[cc]?.vc; }
+function clientesDoVendedor(){
+  // todos os clientes com histórico; se houver filtro de vendedor, os que têm o vendedor como atual
+  const all = Object.keys(S.cliNome);
+  return S.vend ? all.filter(cc => vendAtual(cc) === S.vend) : all;
+}
+function alertas(){
+  return clientesDoVendedor().map(cc => ({cc, s: situacao(cc)})).filter(x => x.s.tipo === 'alerta');
+}
+
+/* =====================================================================
+   GRÁFICOS
+   ===================================================================== */
+const charts = {};
+function css(v){ return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
+function mkChart(id, cfg){
+  if (charts[id]) { charts[id].destroy(); delete charts[id]; }
+  const el = document.getElementById(id); if (!el || !window.Chart) return;
+  const grid = css('--border'), ink = css('--text-2');
+  Chart.defaults.font.family = 'system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif';
+  Chart.defaults.color = ink;
+  cfg.options = Object.assign({
+    responsive: true, maintainAspectRatio: false, animation: false,
+    interaction: {mode: 'index', intersect: false},
+    plugins: {legend: {display: false}, tooltip: {backgroundColor: css('--text'), titleColor: css('--surface'), bodyColor: css('--surface'), padding: 10, cornerRadius: 6,
+      callbacks: {label: c => ' ' + (c.dataset.label ? c.dataset.label + ': ' : '') + fmtBRL(c.parsed[cfg.options?.indexAxis === 'y' ? 'x' : 'y'])}}}
+  }, cfg.options || {});
+  const valueAxis = {grid: {color: grid, drawTicks: false}, border: {display: false}, ticks: {padding: 6, maxRotation: 0, maxTicksLimit: 6, callback: v => fmtBRLk(v)}};
+  const catAxis = {grid: {display: false}, border: {color: css('--border-strong')}, ticks: {padding: 4}};
+  cfg.options.scales = cfg.options.indexAxis === 'y' ? {x: valueAxis, y: {...catAxis, ticks: {...catAxis.ticks, autoSkip: false}}} : {x: catAxis, y: valueAxis};
+  charts[id] = new Chart(el, cfg);
+}
+const barDs = (label, data, color, extra = {}) => ({label, data, backgroundColor: color, borderRadius: 4, borderSkipped: 'start', maxBarThickness: 34, categoryPercentage: .72, barPercentage: .9, ...extra});
+
+/* =====================================================================
+   TELAS
+   ===================================================================== */
+function renderFiltros(){
+  const selA = $('#f-ano'), selM = $('#f-mes'), selC = $('#f-cmp'), selV = $('#f-vend');
+  const anos = anosDisp();
+  selA.innerHTML = anos.length ? '<option value="">Todos os anos</option>' + [...anos].reverse().map(a => `<option value="${a}">${a}</option>`).join('') : '<option value="">Sem dados</option>';
+  selA.value = S.ano;
+  const mesesAno = S.ano ? S.meses.filter(m => m.startsWith(S.ano)) : [];
+  selM.innerHTML = S.ano ? `<option value="">Ano inteiro (${S.ano})</option>` + [...mesesAno].reverse().map(m => `<option value="${m}">${mesLabel(m)}${S.mesInfo[m].parcial ? ' (parcial)' : ''}</option>`).join('') : '<option value="">Todos os meses</option>';
+  selM.value = S.mesSel; selM.disabled = !S.ano;
+  selC.innerHTML = opcoesComparacao().map(([k, l]) => `<option value="${k}">${esc(l)}</option>`).join('');
+  selC.value = S.cmp || ''; selC.disabled = S.mes === 'A';
+  const vends = Object.entries(S.vendNome).sort((a,b) => a[1].localeCompare(b[1]));
+  selV.innerHTML = '<option value="">Todos os vendedores</option>' + vends.map(([c, n]) => `<option value="${esc(c)}">${esc(n)}</option>`).join('');
+  selV.value = S.vend;
+  let nota = '';
+  if (S.mes && isMes(S.mes)) { const m = S.mes.slice(2), inf = S.mesInfo[m]; nota = inf.mensal ? `Fechamento mensal de ${mesLabelL(m)}` : `Parcial: ${inf.usados.length} semana(s), até ${isoToBR(inf.ate)}`; }
+  else if (S.mes) { const ms = perMeses(S.mes), parc = ms.filter(m => S.mesInfo[m].parcial).length; nota = `${ms.length} ${ms.length === 1 ? 'mês' : 'meses'} com dados${parc ? ` (${parc} parcial)` : ''}`; }
+  $('#f-note').innerHTML = nota + (S.dataRef ? ` · Dados até ${isoToBR(S.dataRef)}` : '');
+  $('#filters').classList.toggle('hidden', S.tab === 'arquivos' || S.tab === 'usuarios');
+  $('#fg-vend').classList.toggle('hidden', S.tab === 'vendedores');
+  const n = alertas().length; const ac = $('#alert-count'); ac.textContent = n; ac.classList.toggle('hidden', !n);
+}
+function opcoesComparacao(){
+  const o = [['', 'Não comparar']];
+  if (!S.mes || S.mes === 'A') return o;
+  if (isMes(S.mes)) {
+    const m = S.mes.slice(2), [y, mm] = m.split('-');
+    const mesmoAnoPassado = `${+y - 1}-${mm}`;
+    if (S.meses.includes(mesmoAnoPassado)) o.push(['M:' + mesmoAnoPassado, `${mesLabel(mesmoAnoPassado)} (mesmo mês do ano anterior)`]);
+    [...S.meses].reverse().filter(x => x !== m && x !== mesmoAnoPassado).forEach(x => o.push(['M:' + x, mesLabel(x) + (S.mesInfo[x].parcial ? ' (parcial)' : '')]));
+  } else {
+    const y = S.mes.slice(2), nums = perMeses(S.mes).map(m => +m.slice(5));
+    [...anosDisp()].reverse().filter(a => a !== y).forEach(a => {
+      const ms = perMeses('YS:' + a).map(m => +m.slice(5)), todos = perMeses('Y:' + a).length;
+      const faixa = ms.length ? MESES[Math.min(...ms) - 1] + (ms.length > 1 ? '–' + MESES[Math.max(...ms) - 1] : '') : '';
+      if (ms.length && ms.length < todos) o.push(['YS:' + a, `${a} · mesmos meses (${faixa})`]);
+      o.push(['Y:' + a, `${a} · ano inteiro`]);
+    });
+  }
+  return o;
+}
+
+function render(){
+  renderFiltros();
+  $$('#tabs button').forEach(b => b.setAttribute('aria-selected', b.dataset.tab === S.tab));
+  const main = $('#main');
+  if (!S.meses.length && S.tab !== 'arquivos' && S.tab !== 'usuarios') {
+    main.innerHTML = `<div class="card empty" style="padding:50px 16px"><h2 style="margin-bottom:6px">Nenhum arquivo de vendas carregado ainda</h2>${isAdmin() ? '<p>Vá em <b>Arquivos</b> e carregue o relatório exportado em HTML.</p><button class="btn primary" id="go-arq">Carregar arquivo</button>' : '<p>Assim que o administrador carregar os relatórios, os dados aparecem aqui.</p>'}</div>`;
+    $('#go-arq')?.addEventListener('click', () => { S.tab = 'arquivos'; render(); });
+    return;
+  }
+  ({painel: renderPainel, vendedores: renderVendedores, produtos: renderProdutos, clientes: renderClientes, alertas: renderAlertas, arquivos: renderArquivos, usuarios: renderUsuarios})[S.tab]();
+}
+
+/* ---------------- PAINEL ---------------- */
+function renderPainel(){
+  const LA = perLabel(S.mes), LB = S.cmp ? perLabel(S.cmp) : '';
+  const A = agg(perFatos(S.mes)), B = S.cmp ? agg(perFatos(S.cmp)) : null;
+  const mesesA = perMeses(S.mes), mesesB = S.cmp ? perMeses(S.cmp) : [];
+  const multi = mesesA.length > 1 || !isMes(S.mes);
+  const ticketA = A.nCli ? A.total / A.nCli : 0, ticketB = B && B.nCli ? B.total / B.nCli : null;
+  const mediaA = mesesA.length ? A.total / mesesA.length : 0, mediaB = B && mesesB.length ? B.total / mesesB.length : null;
+  const cmpTxt = S.cmp ? `vs ${esc(LB)}: ` : '';
+  const kpi = (lbl, val, a, b, sub) => `<div class="card kpi"><div class="lbl">${lbl}</div><div class="val num">${val}</div><div class="cmp">${B ? cmpTxt + deltaHTML(a, b) : sub || '&nbsp;'}</div></div>`;
+  const vendNome = S.vend ? S.vendNome[S.vend] : 'Todos os vendedores';
+  const inf = isMes(S.mes) ? S.mesInfo[S.mes.slice(2)] : null;
+  const temSemanas = inf && inf.semanais.length > 0;
+  const rank = [...A.cli.entries()].filter(([, c]) => c.val > 0).sort((a,b) => b[1].val - a[1].val);
+  const N = S.rankN;
+  const melhores = rank.slice(0, N), piores = rank.slice(-N).reverse().filter(x => !melhores.includes(x) || rank.length <= N);
+  let perdA = A, perdB = B, perdLA = LA, perdLB = LB;
+  if (S.mes === 'A' && anosDisp().length > 1) { const ult = anosDisp().at(-1); perdA = agg(perFatos('Y:' + ult)); perdB = agg(S.meses.filter(m => !m.startsWith(ult)).flatMap(m => fatosFiltrados(m))); perdLA = ult; perdLB = 'anos anteriores'; }
+  const perdidos = perdB ? [...perdB.cli.entries()].filter(([cc, c]) => c.val > 0 && !(perdA.cli.get(cc)?.val > 0)).sort((a,b) => b[1].val - a[1].val) : [];
+  const prods = [...A.prod.entries()].sort((a,b) => b[1].val - a[1].val).slice(0, 10);
+  const maxProd = prods[0]?.[1].val || 1;
+  const hA = esc(perLabelCurto(S.mes)), hB = S.cmp ? esc(perLabelCurto(S.cmp)) : '';
+
+  const rankTable = (lst, titulo, sub, id) => `<div class="card"><h2>${titulo}</h2><p class="sub">${sub}</p>
+    ${lst.length ? `<table class="t" id="${id}"><thead><tr><th></th><th>Cliente</th><th class="r">${hA}</th>${B ? `<th class="r">${hB}</th><th class="r">Var.</th>` : ''}<th>Situação</th></tr></thead><tbody>
+    ${lst.map(([cc, c], i) => { const b = B?.cli.get(cc)?.val || 0; return `<tr class="click" data-cc="${esc(cc)}"><td class="rank">${id === 'rk-piores' ? rank.length - i : i + 1}</td><td><div class="cname">${esc(S.cliNome[cc])}</div><div class="ccode">cód. ${esc(cc)}${S.vend ? '' : ' · ' + esc(S.vendNome[Object.entries(c.vend).sort((a,b)=>b[1]-a[1])[0][0]] || '')}</div></td><td class="r num">${fmtBRL(c.val)}</td>${B ? `<td class="r num">${fmtBRL(b)}</td><td class="r">${deltaHTML(c.val, b)}</td>` : ''}<td>${badgeSit(cc, true)}</td></tr>`; }).join('')}
+    </tbody></table>` : '<div class="empty">Sem clientes neste filtro.</div>'}</div>`;
+
+  // títulos do gráfico de evolução conforme o período
+  const evolTitulo = S.mes === 'A' ? 'Venda geral por ano' : `Venda geral por mês · ${S.ano}`;
+  const evolSub = S.mes === 'A' ? `${esc(vendNome)} · clique num ano para analisar` :
+    (S.mes.startsWith('M:') ? `${esc(vendNome)} · clique num mês para selecionar · * = parcial (só semanas)` :
+    `${esc(vendNome)}${B ? ' · ' + esc(LA) + ' comparado com ' + esc(LB) : ''} · clique num mês para abrir · * = parcial`);
+  const evolLegend = (!isMes(S.mes) && B) ? `<div class="legend"><span><i style="background:var(--s1)"></i>${hA}</span><span><i style="background:var(--s2)"></i>${hB}</span></div>` : '';
+
+  // resumo mês a mês (ano) ou ano a ano (todos)
+  let resumoHTML = '', matrizHTML = '';
+  if (multi) {
+    const linhas = S.mes === 'A'
+      ? anosDisp().map(y => ({k: y, lbl: y, ms: S.meses.filter(m => m.startsWith(y))}))
+      : mesesA.map(m => ({k: m, lbl: mesLabel(m) + (S.mesInfo[m].parcial ? '*' : ''), ms: [m]}));
+    const dados = linhas.map(l => { const g = agg(l.ms.flatMap(m => fatosFiltrados(m))); return {...l, g}; });
+    const anterior = l => { if (S.mes === 'A') { const p = String(+l.k - 1); const nums = new Set(l.ms.map(m => m.slice(5))); const ms = S.meses.filter(m => m.startsWith(p) && nums.has(m.slice(5))); return ms.length ? agg(ms.flatMap(m => fatosFiltrados(m))).total : null; } const i = S.meses.indexOf(l.k); return i > 0 ? agg(fatosFiltrados(S.meses[i-1])).total : null; };
+    const anoAnt = l => { if (S.mes === 'A') return null; const m = `${+l.k.slice(0,4) - 1}-${l.k.slice(5)}`; return S.meses.includes(m) ? agg(fatosFiltrados(m)).total : null; };
+    const temAnoAnt = S.mes !== 'A' && dados.some(d => anoAnt(d) != null);
+    const unid = S.mes === 'A' ? 'Ano' : 'Mês';
+    const maxT = Math.max(...dados.map(d => d.g.total), 1);
+    resumoHTML = `<div class="card" style="margin-top:14px"><h2>Resumo ${S.mes === 'A' ? 'ano a ano' : 'mês a mês · ' + S.ano}</h2><p class="sub">${esc(vendNome)} · clique numa linha para abrir ${S.mes === 'A' ? 'o ano' : 'o mês'}</p>
+      <div class="tbl-wrap"><table class="t" id="resumo"><thead><tr><th>${unid}</th><th class="r">Venda líquida</th><th class="r">Clientes</th><th class="r">Ticket médio</th><th class="r">Itens</th><th class="r">vs ${S.mes === 'A' ? 'ano anterior (mesmos meses)' : 'mês anterior'}</th>${temAnoAnt ? '<th class="r">vs mesmo mês ano anterior</th>' : ''}</tr></thead><tbody>
+      ${dados.map(d => `<tr class="click-per" data-k="${d.k}" style="cursor:pointer"><td><b>${d.lbl}</b></td><td class="r num">${fmtBRL(d.g.total)}<div class="minibar" style="width:${Math.max(2, d.g.total / maxT * 100)}%;margin-left:auto"></div></td><td class="r num">${fmtN(d.g.nCli)}</td><td class="r num">${fmtBRL(d.g.nCli ? d.g.total / d.g.nCli : 0)}</td><td class="r num">${fmtN(d.g.qtd)}</td><td class="r">${anterior(d) == null ? '<span class="ccode">—</span>' : deltaHTML(d.g.total, anterior(d))}</td>${temAnoAnt ? `<td class="r">${anoAnt(d) == null ? '<span class="ccode">—</span>' : deltaHTML(d.g.total, anoAnt(d))}</td>` : ''}</tr>`).join('')}
+      </tbody><tfoot><tr><td><b>Total</b></td><td class="r num"><b>${fmtBRL(A.total)}</b></td><td class="r num"><b>${fmtN(A.nCli)}</b></td><td class="r num"><b>${fmtBRL(ticketA)}</b></td><td class="r num"><b>${fmtN(A.qtd)}</b></td><td></td>${temAnoAnt ? '<td></td>' : ''}</tr></tfoot></table></div></div>`;
+    // matriz vendedor × período (sempre todos os vendedores)
+    const cols = linhas;
+    const vm = {}; for (const c of cols) for (const m of c.ms) for (const r of S.fatos[m]) { const o = (vm[r.vc] ||= {}); o[c.k] = (o[c.k] || 0) + r.val; }
+    const vks = Object.keys(vm).sort((a, b) => Object.values(vm[b]).reduce((s, x) => s + x, 0) - Object.values(vm[a]).reduce((s, x) => s + x, 0));
+    const totV = k => Object.values(vm[k]).reduce((s, x) => s + x, 0);
+    const totAll = vks.reduce((s, k) => s + totV(k), 0) || 1;
+    matrizHTML = `<div class="card" style="margin-top:14px"><h2>Vendedores por ${S.mes === 'A' ? 'ano' : 'mês'}${S.mes === 'A' ? '' : ' · ' + S.ano}</h2><p class="sub">Venda líquida de cada vendedor em cada período · clique no nome para filtrar</p>
+      <div class="tbl-wrap"><table class="t"><thead><tr><th>Vendedor</th>${cols.map(c => `<th class="r">${c.lbl}</th>`).join('')}<th class="r">Total</th><th class="r">% do total</th></tr></thead><tbody>
+      ${vks.map(k => `<tr${S.vend === k ? ' style="background:var(--surface-2)"' : ''}><td><button class="link" data-vend="${esc(k)}">${esc(S.vendNome[k] || k)}</button></td>${cols.map(c => `<td class="r num">${vm[k][c.k] ? fmtBRLk(vm[k][c.k]) : '<span class="ccode">—</span>'}</td>`).join('')}<td class="r num"><b>${fmtBRL(totV(k))}</b></td><td class="r num">${fmtN(totV(k) / totAll * 100, 1)}%</td></tr>`).join('')}
+      </tbody></table></div></div>`;
+  }
+
+  $('#main').innerHTML = `
+  <div class="grid ${multi ? 'g5' : 'g4'}">
+    ${kpi('Venda líquida · ' + esc(LA), fmtBRL(A.total), A.total, B?.total)}
+    ${multi ? kpi('Média por mês', fmtBRL(mediaA), mediaA, mediaB, `${mesesA.length} ${mesesA.length === 1 ? 'mês' : 'meses'}`) : ''}
+    ${kpi('Clientes que compraram', fmtN(A.nCli), A.nCli, B?.nCli)}
+    ${kpi('Ticket médio por cliente', fmtBRL(ticketA), ticketA, ticketB)}
+    ${kpi('Itens vendidos (qtde)', fmtN(A.qtd), A.qtd, B?.qtd)}
+  </div>
+  <div class="grid g32" style="margin-top:14px">
+    <div class="card">
+      <div class="card-head"><div><h2>${evolTitulo}</h2><p class="sub">${evolSub}</p></div></div>
+      ${evolLegend}
+      <div class="chart-box"><canvas id="ch-evol" role="img" aria-label="${evolTitulo}"></canvas></div>
+    </div>
+    <div class="card">
+      <h2>Venda por vendedor</h2><p class="sub">${esc(LA)}${B ? ' comparado com ' + esc(LB) : ''} · clique numa barra para filtrar</p>
+      ${B ? `<div class="legend"><span><i style="background:var(--s1)"></i>${hA}</span><span><i style="background:var(--s2)"></i>${hB}</span></div>` : ''}
+      <div class="chart-box"><canvas id="ch-vend" role="img" aria-label="Venda por vendedor"></canvas></div>
+    </div>
+  </div>
+  ${temSemanas ? `<div class="card" style="margin-top:14px"><h2>Venda por semana · ${esc(LA)}</h2><p class="sub">A partir dos arquivos semanais carregados${inf.mensal ? ' (o total do mês usa o fechamento mensal)' : ''}</p><div class="chart-box" style="height:220px"><canvas id="ch-sem"></canvas></div></div>` : ''}
+  ${resumoHTML}
+  ${matrizHTML}
+  <div class="toolbar" style="margin:18px 0 0"><b style="font-size:15px">Ranking de clientes · ${esc(vendNome)} · ${esc(LA)}</b>
+    <span class="help">Clique em um cliente para ver os produtos que ele comprou.</span>
+    <span style="margin-left:auto" class="seg" id="rank-n">${[5,10,20].map(n => `<button aria-pressed="${n===N}" data-n="${n}">Top ${n}</button>`).join('')}</span></div>
+  <div class="grid g2" style="margin-top:10px">
+    ${rankTable(melhores, 'Melhores clientes', `Maiores compras em ${esc(LA)}`, 'rk-melhores')}
+    ${rankTable(piores, 'Piores clientes', `Menores compras em ${esc(LA)} (entre os que compraram)`, 'rk-piores')}
+  </div>
+  <div class="grid g2" style="margin-top:14px">
+    <div class="card"><h2>Produtos mais vendidos</h2><p class="sub">${esc(LA)} · ${esc(vendNome)}</p>
+      <table class="t"><thead><tr><th></th><th>Produto</th><th class="r">Qtde</th><th class="r">Venda</th>${B ? `<th class="r">${hB}</th>` : ''}</tr></thead><tbody>
+      ${prods.map(([p, x], i) => `<tr><td class="rank">${i+1}</td><td>${esc(p)}<div class="minibar" style="width:${Math.max(2, x.val/maxProd*100)}%"></div></td><td class="r num">${fmtN(x.q)}</td><td class="r num">${fmtBRL(x.val)}</td>${B ? `<td class="r">${deltaHTML(x.val, B.prod.get(p)?.val || 0)}</td>` : ''}</tr>`).join('')}
+      </tbody></table></div>
+    <div class="card"><h2>Compraram em ${perdB ? esc(perdLB) : 'outro período'} e não em ${esc(perdLA)}</h2>
+      ${perdB ? `<p class="sub">${perdidos.length} cliente(s) · ${fmtBRL(perdidos.reduce((s, [, c]) => s + c.val, 0))} em ${esc(perdLB)}</p>
+      ${perdidos.length ? `<div class="tbl-wrap" style="max-height:380px"><table class="t"><thead><tr><th>Cliente</th><th class="r">${esc(perdLB)}</th><th>Situação</th></tr></thead><tbody>
+      ${perdidos.map(([cc, c]) => `<tr class="click" data-cc="${esc(cc)}"><td><div class="cname">${esc(S.cliNome[cc])}</div><div class="ccode">cód. ${esc(cc)}</div></td><td class="r num">${fmtBRL(c.val)}</td><td>${badgeSit(cc, true)}</td></tr>`).join('')}
+      </tbody></table></div>` : '<div class="empty">Nenhum cliente deixou de comprar.</div>'}`
+      : `<p class="sub">${S.mes === 'A' ? 'Selecione um ano ou mês para usar a comparação.' : 'Escolha um período em "Comparar com" para ver quem comprou no outro período e não comprou neste.'}</p>`}
+    </div>
+  </div>`;
+
+  // evolução
+  const cor3 = (sel, cmp) => sel ? css('--s1') : cmp ? css('--s2') : css('--s-neutral');
+  if (S.mes === 'A') {
+    const anos = anosDisp();
+    const vals = anos.map(y => agg(S.meses.filter(m => m.startsWith(y)).flatMap(m => fatosFiltrados(m))).total);
+    mkChart('ch-evol', {type: 'bar', data: {labels: anos.map(y => y + (S.meses.filter(m => m.startsWith(y)).length < 12 ? '*' : '')), datasets: [barDs('Venda', vals, css('--s1'), {maxBarThickness: 60})]},
+      options: {onClick: (e, els) => { if (els[0]) { S.ano = anos[els[0].index]; S.mesSel = ''; definirPeriodo(); render(); } }}});
+  } else if (isMes(S.mes)) {
+    const ms = S.meses.filter(m => m.startsWith(S.ano)), sel = S.mes.slice(2), cm = S.cmp && isMes(S.cmp) ? S.cmp.slice(2) : '';
+    mkChart('ch-evol', {type: 'bar', data: {labels: ms.map(m => mesLabel(m) + (S.mesInfo[m].parcial ? '*' : '')),
+      datasets: [barDs('Venda', ms.map(m => agg(fatosFiltrados(m)).total), ms.map(m => cor3(m === sel, m === cm)))]},
+      options: {onClick: (e, els) => { if (els[0]) { S.mesSel = ms[els[0].index]; definirPeriodo(); render(); } }}});
+  } else {
+    // ano: Jan..Dez lado a lado com o período de comparação
+    const nums = [...new Set([...mesesA, ...mesesB].map(m => m.slice(5)))].sort();
+    const yA = S.mes.slice(2), yB = S.cmp ? S.cmp.split(':')[1] : '';
+    const ds = [barDs(hA, nums.map(n => S.meses.includes(`${yA}-${n}`) ? agg(fatosFiltrados(`${yA}-${n}`)).total : null), css('--s1'))];
+    if (B) ds.push(barDs(hB, nums.map(n => mesesB.includes(`${yB}-${n}`) ? agg(fatosFiltrados(`${yB}-${n}`)).total : null), css('--s2')));
+    mkChart('ch-evol', {type: 'bar', data: {labels: nums.map(n => MESES[+n - 1] + (S.mesInfo[`${yA}-${n}`]?.parcial ? '*' : '')), datasets: ds},
+      options: {plugins: {legend: {display: false}, tooltip: {backgroundColor: css('--text'), titleColor: css('--surface'), bodyColor: css('--surface'), padding: 10, cornerRadius: 6, callbacks: {label: c => ` ${c.dataset.label}: ${c.parsed.y == null ? 'sem dados' : fmtBRL(c.parsed.y)}`}}},
+        onClick: (e, els) => { if (els[0]) { const m = `${yA}-${nums[els[0].index]}`; if (S.meses.includes(m)) { S.mesSel = m; definirPeriodo(); render(); } } }}});
+  }
+  // vendedores (sempre todos; o filtrado fica destacado)
+  const VA = agg(perMeses(S.mes).flatMap(m => S.fatos[m])).vend, VB = S.cmp ? agg(perMeses(S.cmp).flatMap(m => S.fatos[m])).vend : null;
+  const vKeys = [...new Set([...VA.keys(), ...(VB ? VB.keys() : [])])].sort((a,b) => (VA.get(b)||0) - (VA.get(a)||0));
+  const cor = c => vKeys.map(k => !S.vend || k === S.vend ? c : c + '55');
+  const ds = [barDs(hA, vKeys.map(k => VA.get(k) || 0), cor(css('--s1')))];
+  if (VB) ds.push(barDs(hB, vKeys.map(k => VB.get(k) || 0), cor(css('--s2'))));
+  mkChart('ch-vend', {type: 'bar', data: {labels: vKeys.map(k => S.vendNome[k] || k), datasets: ds}, options: {indexAxis: 'y',
+    onClick: (e, els) => { if (els[0]) { S.vend = vKeys[els[0].index]; render(); } }}});
+  // semanal
+  if (temSemanas) {
+    const sem = inf.semanais.map(a => { let t = 0; for (const r of S.payloads[a.id]) if (!S.vend || r.vc === S.vend) t += r.val; return t; });
+    mkChart('ch-sem', {type: 'bar', data: {labels: inf.semanais.map(a => isoToBRc(a.inicio) + ' a ' + isoToBRc(a.fim)), datasets: [barDs('Venda', sem, css('--s1'), {maxBarThickness: 48})]}});
+  }
+  $$('#main tr.click').forEach(tr => tr.addEventListener('click', () => abrirCliente(tr.dataset.cc)));
+  $$('#main tr.click-per').forEach(tr => tr.addEventListener('click', () => { const k = tr.dataset.k; if (S.mes === 'A') { S.ano = k; S.mesSel = ''; } else S.mesSel = k; definirPeriodo(); render(); window.scrollTo(0, 0); }));
+  $$('#main [data-vend]').forEach(b => b.addEventListener('click', () => { S.vend = S.vend === b.dataset.vend ? '' : b.dataset.vend; render(); }));
+  $$('#rank-n button').forEach(b => b.addEventListener('click', () => { S.rankN = +b.dataset.n; render(); }));
+}
+
+/* ---------------- VENDEDORES (comparação de venda e mix) ---------------- */
+// Linhas de produto: definidas pela primeira palavra do nome do produto. Ajuste aqui se quiser.
+const LINHAS = [
+  ['Arroz', ['ARROZ']],
+  ['Algas', ['ALGA', 'NORI']],
+  ['Cream cheese', ['CREAM', 'RECHEIO', 'REQUEIJAO']],
+  ['Sachês', ['SACHE']],
+  ['Molhos e temperos', ['MOLHO', 'GALAO', 'VINAGRE', 'PIMENTA', 'WASABI', 'GENGIBRE', 'HONDASHI', 'TEMPERO', 'GLUTAMATO', 'SAKE', 'FURIKAKE', 'MIRIN', 'SHOYU', 'TARE', 'MISSO', 'SAL', 'ACUCAR', 'AÇUCAR']],
+  ['Óleos e azeites', ['OLEO', 'ÓLEO', 'AZEITE']],
+  ['Farinhas e massas', ['FARINHA', 'MASSA', 'MACARRAO', 'BISCOITO', 'PANKO', 'LAMEN', 'TEMPURA']],
+  ['Congelados e kani', ['KANI', 'GUIOZA', 'EDAMAME', 'SHITAKE', 'MANGA', 'CAMARAO', 'SALMAO', 'HARUMAKI', 'SHIMEJI']],
+  ['Grãos e complementos', ['GERGELIM', 'AMENDOA', 'CEBOLA', 'TOMATE', 'CASTANHA', 'AMENDOIM']],
+  ['Embalagens e descartáveis', ['DPC', 'ISOPOR', 'MP', 'PP', 'SACO', 'GO', 'FILME', 'BOBINA', 'FIBRAFORM', 'LACRE', 'CLIP', 'GUARDANAPO', 'PAPEL', 'BARAN', 'HASHI', 'LUVA', 'MOLHEIRA', 'REFIL', 'POTE', 'TAMPA', 'COPO', 'EMBALAGEM', 'BANDEJA', 'SACOLA', 'PALITO']],
+  ['Utensílios', ['PANELA', 'PANO', 'FACA', 'MOEDOR', 'MAÇARICO', 'MACARICO', 'SUDARE', 'MANDOLIN', 'PEDRA', 'ROLINHO', 'BARCO', 'ESTEIRA', 'TABUA']]
+];
+const LINHA_DE = {}; LINHAS.forEach(([n, ws]) => ws.forEach(w => LINHA_DE[w] = n));
+const _linhaCache = new Map();
+function linhaDe(p){ let l = _linhaCache.get(p); if (!l) { l = LINHA_DE[(p.split(/[\s(]/)[0] || '').toUpperCase()] || 'Outros'; _linhaCache.set(p, l); } return l; }
+const ORDEM_LINHAS = [...LINHAS.map(l => l[0]), 'Outros'];
+
+function statsVendedores(rows){
+  const V = new Map();
+  for (const r of rows) {
+    let v = V.get(r.vc); if (!v) V.set(r.vc, v = {vc: r.vc, total: 0, qtd: 0, cli: new Map(), prod: new Map(), linha: new Map()});
+    v.total += r.val; v.qtd += r.q;
+    let c = v.cli.get(r.cc); if (!c) v.cli.set(r.cc, c = {val: 0, prods: new Set(), linhas: new Set()});
+    c.val += r.val; c.prods.add(r.p); c.linhas.add(linhaDe(r.p));
+    let p = v.prod.get(r.p); if (!p) v.prod.set(r.p, p = {val: 0, q: 0, cli: new Set()});
+    p.val += r.val; p.q += r.q; p.cli.add(r.cc);
+    const l = linhaDe(r.p); v.linha.set(l, (v.linha.get(l) || 0) + r.val);
+  }
+  for (const v of V.values()) {
+    const cs = [...v.cli.values()].filter(c => c.val > 0);
+    v.nCli = cs.length;
+    v.ticket = v.nCli ? v.total / v.nCli : 0;
+    v.skus = [...v.prod.values()].filter(p => p.val > 0 || p.q > 0).length;
+    v.mixCli = v.nCli ? cs.reduce((s, c) => s + c.prods.size, 0) / v.nCli : 0;
+    v.linhasCli = v.nCli ? cs.reduce((s, c) => s + c.linhas.size, 0) / v.nCli : 0;
+    v.nLinhas = [...v.linha.values()].filter(x => x > 0).length;
+  }
+  return V;
+}
+
+function renderVendedores(){
+  const LA = perLabel(S.mes), LB = S.cmp ? perLabel(S.cmp) : '';
+  const rowsA = perMeses(S.mes).flatMap(m => S.fatos[m]), rowsB = S.cmp ? perMeses(S.cmp).flatMap(m => S.fatos[m]) : [];
+  const VA = statsVendedores(rowsA), VB = S.cmp ? statsVendedores(rowsB) : null;
+  const totalA = [...VA.values()].reduce((s, v) => s + v.total, 0) || 1;
+  const vends = [...VA.values()].sort((a, b) => b.total - a.total);
+  if (!vends.length) { $('#main').innerHTML = '<div class="card empty">Sem vendas neste período.</div>'; return; }
+  if (!VA.has(S.vA)) S.vA = vends[0].vc;
+  if (!VA.has(S.vB) || S.vB === S.vA) S.vB = (vends.find(v => v.vc !== S.vA) || vends[0]).vc;
+  const a = VA.get(S.vA), b = VA.get(S.vB);
+  const nA = S.vendNome[S.vA] || S.vA, nB = S.vendNome[S.vB] || S.vB;
+  const {k: sk, dir: sd} = S.vendSort;
+  const lista = [...vends].sort((x, y) => (sk === 'nome' ? (S.vendNome[x.vc] || '').localeCompare(S.vendNome[y.vc] || '') : x[sk] - y[sk]) * sd);
+  const th = (key, lbl, r) => `<th class="sort ${r ? 'r' : ''}" data-k="${key}">${lbl}${sk === key ? (sd > 0 ? ' ↑' : ' ↓') : ''}</th>`;
+  const dv = (v, key) => VB ? (VB.get(v.vc) ? deltaHTML(v[key], VB.get(v.vc)[key]) : '<span class="delta up">novo</span>') : '';
+  const cell = (v, key, fmt) => `<td class="r num">${fmt(v[key])}${VB ? `<div class="ccode">${dv(v, key)}</div>` : ''}</td>`;
+  const f1 = x => fmtN(x, 1);
+  const opts = sel => vends.map(v => `<option value="${esc(v.vc)}" ${v.vc === sel ? 'selected' : ''}>${esc(S.vendNome[v.vc] || v.vc)}</option>`).join('');
+
+  // linhas de produto presentes
+  const linhasTot = new Map(); for (const v of vends) for (const [l, x] of v.linha) linhasTot.set(l, (linhasTot.get(l) || 0) + x);
+  const linhas = ORDEM_LINHAS.filter(l => (linhasTot.get(l) || 0) > 0).sort((x, y) => linhasTot.get(y) - linhasTot.get(x));
+  const pct = (v, l) => v.total ? (v.linha.get(l) || 0) / v.total * 100 : 0;
+  const pctEmpresa = l => linhasTot.get(l) / totalA * 100;
+  // calor: azul sequencial em 5 degraus; texto escuro nos claros e branco nos escuros
+  const RAMPA = ['#e8f1fc', '#cde2fb', '#9ec5f4', '#5598e7', '#256abf', '#184f95'];
+  const maxPct = Math.max(...vends.flatMap(v => linhas.map(l => pct(v, l))), 1);
+  const heat = x => { if (!x) return 'background:transparent'; const i = Math.min(RAMPA.length - 1, Math.floor(x / maxPct * RAMPA.length)); return `background:${RAMPA[i]};color:${i >= 3 ? '#fff' : '#0b0b0b'}`; };
+
+  // produtos A x B
+  const prodsU = [...new Set([...a.prod.keys(), ...b.prod.keys()])].map(p => ({p, l: linhaDe(p), a: a.prod.get(p), b: b.prod.get(p)}))
+    .map(x => ({...x, tot: (x.a?.val || 0) + (x.b?.val || 0)}));
+  const soA = prodsU.filter(x => x.a && !x.b), soB = prodsU.filter(x => x.b && !x.a), ambos = prodsU.filter(x => x.a && x.b);
+  let pv = prodsU;
+  if (S.vendProdF === 'soA') pv = soA; else if (S.vendProdF === 'soB') pv = soB; else if (S.vendProdF === 'ambos') pv = ambos;
+  if (S.vendProdQ) { const q = S.vendProdQ.toLowerCase(); pv = pv.filter(x => x.p.toLowerCase().includes(q) || x.l.toLowerCase().includes(q)); }
+  pv = pv.sort((x, y) => y.tot - x.tot);
+  const pctCli = (v, pp) => pp && v.nCli ? pp.cli.size / v.nCli * 100 : 0;
+
+  const kpiPar = (lbl, xa, xb, fmt) => `<div class="card kpi"><div class="lbl">${lbl}</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px">
+      <div><div class="ccode" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><i class="dot" style="background:var(--s1)"></i>${esc(nA)}</div><div class="val num" style="font-size:17px;word-break:break-word">${fmt(xa)}</div></div>
+      <div><div class="ccode" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><i class="dot" style="background:var(--s2)"></i>${esc(nB)}</div><div class="val num" style="font-size:17px;word-break:break-word">${fmt(xb)}</div></div>
+    </div><div class="cmp">${xb ? `${esc(nA)} ${deltaHTML(xa, xb)} em relação a ${esc(nB)}` : '&nbsp;'}</div></div>`;
+
+  $('#main').innerHTML = `
+  <div class="card">
+    <div class="card-head"><div><h2>Comparativo de vendedores · ${esc(LA)}</h2><p class="sub">Venda e mix de cada vendedor${VB ? ` · abaixo de cada número, a variação contra ${esc(LB)}` : ''}. Clique no nome para colocar na comparação lado a lado.</p></div></div>
+    <div class="tbl-wrap"><table class="t" id="vend-score"><thead><tr>
+      ${th('nome', 'Vendedor')}${th('total', 'Venda líquida', 1)}<th class="r">% do total</th>${th('nCli', 'Clientes', 1)}${th('ticket', 'Ticket médio', 1)}${th('skus', 'Produtos diferentes', 1)}${th('mixCli', 'Mix por cliente', 1)}${th('linhasCli', 'Linhas por cliente', 1)}${th('qtd', 'Itens', 1)}
+    </tr></thead><tbody>
+    ${lista.map(v => `<tr${v.vc === S.vA || v.vc === S.vB ? ' style="background:var(--surface-2)"' : ''}><td><button class="link" data-pick="${esc(v.vc)}">${esc(S.vendNome[v.vc] || v.vc)}</button>${v.vc === S.vA ? ' <span class="pill" style="background:var(--s1);color:#fff">A</span>' : v.vc === S.vB ? ' <span class="pill" style="background:var(--s2);color:#fff">B</span>' : ''}</td>
+      ${cell(v, 'total', fmtBRL)}<td class="r num">${fmtN(v.total / totalA * 100, 1)}%</td>${cell(v, 'nCli', fmtN)}${cell(v, 'ticket', fmtBRL)}${cell(v, 'skus', fmtN)}${cell(v, 'mixCli', f1)}${cell(v, 'linhasCli', f1)}${cell(v, 'qtd', fmtN)}</tr>`).join('')}
+    </tbody></table></div>
+    <p class="help" style="margin:10px 0 0"><b>Produtos diferentes</b>: quantos produtos (SKUs) o vendedor vendeu no período. <b>Mix por cliente</b>: média de produtos diferentes que cada cliente dele comprou. <b>Linhas por cliente</b>: média de linhas de produto (arroz, algas, molhos, embalagens…) por cliente. Quanto maior, mais completo o pedido do cliente.</p>
+  </div>
+
+  <div class="card" style="margin-top:14px">
+    <h2>Mix por linha de produto</h2><p class="sub">Quanto cada linha representa na venda de cada vendedor (% da venda dele) · ${esc(LA)} · quanto mais escuro, maior a participação</p>
+    <div class="tbl-wrap"><table class="t heat"><thead><tr><th>Vendedor</th>${linhas.map(l => `<th class="r" style="white-space:normal;min-width:78px">${esc(l)}</th>`).join('')}</tr></thead><tbody>
+      ${vends.map(v => `<tr><td><b>${esc(S.vendNome[v.vc] || v.vc)}</b></td>${linhas.map(l => { const x = pct(v, l); return `<td class="r num" style="${heat(x)}" title="${esc(S.vendNome[v.vc])} · ${esc(l)}: ${fmtBRL(v.linha.get(l) || 0)}">${x ? fmtN(x, 1) + '%' : '—'}</td>`; }).join('')}</tr>`).join('')}
+      <tr class="empresa"><td><b>Empresa</b></td>${linhas.map(l => `<td class="r num"><b>${fmtN(pctEmpresa(l), 1)}%</b></td>`).join('')}</tr>
+    </tbody></table></div>
+  </div>
+
+  <div class="toolbar" style="margin:22px 0 10px;align-items:flex-end">
+    <b style="font-size:15px;margin-right:6px">Lado a lado</b>
+    <label class="fg-inline"><span class="ccode"><i class="dot" style="background:var(--s1)"></i>Vendedor A</span><select class="i" id="vA" style="width:auto">${opts(S.vA)}</select></label>
+    <span class="ccode" style="padding-bottom:9px">vs</span>
+    <label class="fg-inline"><span class="ccode"><i class="dot" style="background:var(--s2)"></i>Vendedor B</span><select class="i" id="vB" style="width:auto">${opts(S.vB)}</select></label>
+    <button class="btn sm" id="vSwap" style="margin-bottom:3px">⇄ Inverter</button>
+  </div>
+  <div class="grid g4">
+    ${kpiPar('Venda líquida', a.total, b.total, fmtBRL)}
+    ${kpiPar('Clientes atendidos', a.nCli, b.nCli, fmtN)}
+    ${kpiPar('Produtos diferentes vendidos', a.skus, b.skus, fmtN)}
+    ${kpiPar('Mix médio por cliente', a.mixCli, b.mixCli, f1)}
+  </div>
+  <div class="grid g2" style="margin-top:14px">
+    <div class="card"><h2>Evolução da venda</h2><p class="sub">${S.mes === 'A' ? 'Todos os meses' : 'Meses de ' + S.ano}</p>
+      <div class="legend"><span><i style="background:var(--s1)"></i>${esc(nA)}</span><span><i style="background:var(--s2)"></i>${esc(nB)}</span></div>
+      <div class="chart-box"><canvas id="ch-vv-evol" role="img" aria-label="Evolução da venda dos dois vendedores"></canvas></div></div>
+    <div class="card"><h2>Mix por linha: ${esc(nA)} × ${esc(nB)}</h2><p class="sub">% da venda de cada um em cada linha de produto · ${esc(LA)}</p>
+      <div class="legend"><span><i style="background:var(--s1)"></i>${esc(nA)}</span><span><i style="background:var(--s2)"></i>${esc(nB)}</span></div>
+      <div class="chart-box tall"><canvas id="ch-vv-mix" role="img" aria-label="Participação por linha de produto"></canvas></div></div>
+  </div>
+  <div class="card" style="margin-top:14px">
+    <h2>Produtos: ${esc(nA)} × ${esc(nB)}</h2>
+    <p class="sub">${esc(LA)} · "% clientes" = parte da carteira do vendedor que comprou o produto. Use "Só A vende" e "Só B vende" para achar oportunidades de mix.</p>
+    <div class="toolbar">
+      <input class="i" id="vp-busca" placeholder="Buscar produto ou linha…" value="${esc(S.vendProdQ)}" style="max-width:280px">
+      <span class="seg" id="vp-f">${[['todos', `Todos (${prodsU.length})`], ['ambos', `Os dois vendem (${ambos.length})`], ['soA', `Só ${nA.split(' ')[0]} vende (${soA.length})`], ['soB', `Só ${nB.split(' ')[0]} vende (${soB.length})`]].map(([v, l]) => `<button data-f="${v}" aria-pressed="${S.vendProdF === v}">${esc(l)}</button>`).join('')}</span>
+    </div>
+    <div class="tbl-wrap" style="max-height:560px"><table class="t"><thead>
+      <tr><th rowspan="2">Produto</th><th rowspan="2">Linha</th><th colspan="3" class="r" style="color:var(--s1)">● ${esc(nA)}</th><th colspan="3" class="r" style="color:var(--s2)">● ${esc(nB)}</th></tr>
+      <tr><th class="r">Qtde</th><th class="r">Venda</th><th class="r">% clientes</th><th class="r">Qtde</th><th class="r">Venda</th><th class="r">% clientes</th></tr></thead><tbody>
+      ${pv.slice(0, 300).map(x => `<tr><td>${esc(x.p)}</td><td class="ccode">${esc(x.l)}</td>
+        <td class="r num">${x.a ? fmtN(x.a.q) : '—'}</td><td class="r num">${x.a ? fmtBRL(x.a.val) : '<span class="badge warn">não vende</span>'}</td><td class="r num">${x.a ? fmtN(pctCli(a, x.a), 0) + '%' : ''}</td>
+        <td class="r num">${x.b ? fmtN(x.b.q) : '—'}</td><td class="r num">${x.b ? fmtBRL(x.b.val) : '<span class="badge warn">não vende</span>'}</td><td class="r num">${x.b ? fmtN(pctCli(b, x.b), 0) + '%' : ''}</td></tr>`).join('') || '<tr><td colspan="8" class="empty">Nenhum produto neste filtro.</td></tr>'}
+    </tbody></table></div>
+    ${pv.length > 300 ? `<p class="help">Mostrando os 300 primeiros de ${pv.length}. Use a busca para refinar.</p>` : ''}
+  </div>`;
+
+  // evolução mensal A x B
+  const ms = S.mes === 'A' ? S.meses : S.meses.filter(m => m.startsWith(S.ano));
+  const serie = vc => ms.map(m => { let t = 0; for (const r of S.fatos[m]) if (r.vc === vc) t += r.val; return t; });
+  const lineDs = (label, data, color) => ({label, data, borderColor: color, backgroundColor: color, borderWidth: 2, pointRadius: 4, pointHoverRadius: 6, pointBorderColor: css('--surface'), pointBorderWidth: 2, tension: .25});
+  if (ms.length > 1) mkChart('ch-vv-evol', {type: 'line', data: {labels: ms.map(m => mesLabel(m) + (S.mesInfo[m].parcial ? '*' : '')), datasets: [lineDs(nA, serie(S.vA), css('--s1')), lineDs(nB, serie(S.vB), css('--s2'))]}});
+  else mkChart('ch-vv-evol', {type: 'bar', data: {labels: ms.map(mesLabel), datasets: [barDs(nA, serie(S.vA), css('--s1')), barDs(nB, serie(S.vB), css('--s2'))]}});
+  // mix por linha A x B (percentual)
+  const lsAB = linhas.filter(l => pct(a, l) || pct(b, l));
+  mkChart('ch-vv-mix', {type: 'bar', data: {labels: lsAB, datasets: [barDs(nA, lsAB.map(l => pct(a, l)), css('--s1'), {maxBarThickness: 14}), barDs(nB, lsAB.map(l => pct(b, l)), css('--s2'), {maxBarThickness: 14})]},
+    options: {indexAxis: 'y', plugins: {legend: {display: false}, tooltip: {backgroundColor: css('--text'), titleColor: css('--surface'), bodyColor: css('--surface'), padding: 10, cornerRadius: 6,
+      callbacks: {label: c => { const v = c.datasetIndex === 0 ? a : b; const l = lsAB[c.dataIndex]; return ` ${c.dataset.label}: ${fmtN(c.parsed.x, 1)}% (${fmtBRL(v.linha.get(l) || 0)})`; }}}}}});
+  if (charts['ch-vv-mix']) { charts['ch-vv-mix'].options.scales.x.ticks.callback = v => v + '%'; charts['ch-vv-mix'].update(); }
+
+  $$('#vend-score th.sort').forEach(h => h.addEventListener('click', () => { const kk = h.dataset.k; S.vendSort = {k: kk, dir: S.vendSort.k === kk ? -S.vendSort.dir : (kk === 'nome' ? 1 : -1)}; renderVendedores(); }));
+  $$('[data-pick]').forEach(bt => bt.addEventListener('click', () => { const vc = bt.dataset.pick; if (vc === S.vA || vc === S.vB) return; S.vB = S.vA; S.vA = vc; renderVendedores(); }));
+  $('#vA').onchange = e => { S.vA = e.target.value; if (S.vA === S.vB) S.vB = ''; renderVendedores(); };
+  $('#vB').onchange = e => { S.vB = e.target.value; if (S.vA === S.vB) S.vA = ''; renderVendedores(); };
+  $('#vSwap').onclick = () => { [S.vA, S.vB] = [S.vB, S.vA]; renderVendedores(); };
+  $$('#vp-f button').forEach(bt => bt.addEventListener('click', () => { S.vendProdF = bt.dataset.f; renderVendedores(); }));
+  const inp = $('#vp-busca'); inp.addEventListener('input', () => { S.vendProdQ = inp.value; const pos = inp.selectionStart; renderVendedores(); const n = $('#vp-busca'); n.focus(); n.setSelectionRange(pos, pos); });
+}
+
+/* ---------------- PRODUTOS (quem comprou e quem não comprou) ---------------- */
+function renderProdutos(){
+  const modo = S.prodModo, porLinha = modo === 'linha';
+  const chave = r => porLinha ? linhaDe(r.p) : r.p;
+  const LA = perLabel(S.mes), LB = S.cmp ? perLabel(S.cmp) : '';
+  const rowsA = perFatos(S.mes), rowsB = S.cmp ? perFatos(S.cmp) : [];
+  // lista de itens (produtos ou linhas) no período
+  const itens = new Map();
+  for (const r of rowsA) { const k = chave(r); let it = itens.get(k); if (!it) itens.set(k, it = {k, val: 0, q: 0, cli: new Set(), prods: new Set()}); it.val += r.val; it.q += r.q; it.cli.add(r.cc); it.prods.add(r.p); }
+  const lista = [...itens.values()].sort((a, b) => b.val - a.val);
+  if (!lista.length) { $('#main').innerHTML = '<div class="card empty">Sem vendas neste período.</div>'; return; }
+  if (!itens.has(S.prodSel[modo])) S.prodSel[modo] = lista[0].k;
+  const sel = S.prodSel[modo], item = itens.get(sel);
+  const bate = r => chave(r) === sel;
+
+  // clientes ativos no período (compraram qualquer coisa) e carteira
+  const ativos = new Map(); for (const r of rowsA) ativos.set(r.cc, (ativos.get(r.cc) || 0) + r.val);
+  for (const [cc, v] of ativos) if (v <= 0) ativos.delete(cc);
+  const universo = S.prodUniv === 'carteira' ? new Set([...clientesDoVendedor(), ...ativos.keys()]) : new Set(ativos.keys());
+  // quem comprou o item
+  const comp = new Map();
+  for (const r of rowsA) if (bate(r)) { let c = comp.get(r.cc); if (!c) comp.set(r.cc, c = {val: 0, q: 0, prods: new Set(), vend: {}}); c.val += r.val; c.q += r.q; c.prods.add(r.p); c.vend[r.vc] = (c.vend[r.vc] || 0) + r.val; }
+  const compB = new Map(); for (const r of rowsB) if (bate(r)) compB.set(r.cc, (compB.get(r.cc) || 0) + r.val);
+  const qB = rowsB.filter(bate).reduce((s, r) => s + r.q, 0), valB = [...compB.values()].reduce((s, x) => s + x, 0);
+  const ativosB = new Set(rowsB.filter(r => r.val > 0).map(r => r.cc));
+  // histórico: último mês em que cada cliente comprou o item (fora do período atual)
+  const mesesA = new Set(perMeses(S.mes)), ultimo = {};
+  for (const m of S.meses) { if (mesesA.has(m)) continue; for (const r of fatosFiltrados(m)) if (bate(r) && r.val > 0 && (!ultimo[r.cc] || m > ultimo[r.cc])) ultimo[r.cc] = m; }
+  const compradores = [...comp.entries()].filter(([, c]) => c.val > 0 || c.q > 0).sort((a, b) => b[1].val - a[1].val);
+  const nao = [...universo].filter(cc => !(comp.get(cc)?.val > 0 || comp.get(cc)?.q > 0))
+    .map(cc => ({cc, tot: ativos.get(cc) || 0, ult: ultimo[cc] || '', emB: compB.get(cc) > 0}))
+    .sort((a, b) => (b.emB - a.emB) || ((b.ult ? 1 : 0) - (a.ult ? 1 : 0)) || (b.tot - a.tot));
+  const nComp = compradores.length, nUniv = universo.size || 1;
+  const cobertura = nComp / nUniv * 100;
+  const cobB = S.cmp && ativosB.size ? compB.size / ativosB.size * 100 : null;
+  const precoA = item.q ? item.val / item.q : 0, precoB = qB ? valB / qB : null;
+  const perdidos = nao.filter(x => x.emB).length;
+  const vendNome = S.vend ? S.vendNome[S.vend] : 'Todos os vendedores';
+
+  // cobertura por vendedor (sempre todos os vendedores; destaca o filtrado)
+  const rowsAll = perMeses(S.mes).flatMap(m => S.fatos[m]);
+  const cv = new Map();
+  for (const r of rowsAll) { let v = cv.get(r.vc); if (!v) cv.set(r.vc, v = {ativos: new Map(), comp: new Set(), val: 0}); v.ativos.set(r.cc, (v.ativos.get(r.cc) || 0) + r.val); if (bate(r) && (r.val > 0 || r.q > 0)) { v.comp.add(r.cc); v.val += r.val; } }
+  const covRows = [...cv.entries()].map(([vc, v]) => { const na = [...v.ativos.values()].filter(x => x > 0).length; return {vc, na, nc: v.comp.size, pct: na ? v.comp.size / na * 100 : 0, val: v.val}; }).sort((a, b) => b.pct - a.pct);
+
+  const kpi = (lbl, val, a, b, sub) => `<div class="card kpi"><div class="lbl">${lbl}</div><div class="val num">${val}</div><div class="cmp">${S.cmp && b != null ? `vs ${esc(LB)}: ` + deltaHTML(a, b) : sub || '&nbsp;'}</div></div>`;
+  const q = S.prodBusca.trim().toLowerCase();
+  const listaF = q ? lista.filter(it => it.k.toLowerCase().includes(q) || (!porLinha && linhaDe(it.k).toLowerCase().includes(q))) : lista;
+  const maxV = lista[0].val || 1;
+  const vendDe = cc => S.vendNome[vendAtual(cc)] || '';
+  const prodsLinha = porLinha ? [...(() => { const m = new Map(); for (const r of rowsA) if (bate(r)) { let p = m.get(r.p); if (!p) m.set(r.p, p = {val: 0, q: 0, cli: new Set()}); p.val += r.val; p.q += r.q; p.cli.add(r.cc); } return m; })().entries()].sort((a, b) => b[1].val - a[1].val) : [];
+
+  $('#main').innerHTML = `
+  <div class="prod-layout">
+    <aside class="card prod-list">
+      <div class="seg" id="pr-modo" style="width:100%;margin-bottom:10px"><button data-m="produto" aria-pressed="${!porLinha}" style="flex:1">Produto</button><button data-m="linha" aria-pressed="${porLinha}" style="flex:1">Linha / grupo</button></div>
+      <input class="i" id="pr-busca" placeholder="Buscar ${porLinha ? 'linha' : 'produto'}…" value="${esc(S.prodBusca)}">
+      <div class="help" style="margin:8px 2px">${listaF.length} ${porLinha ? 'linha(s)' : 'produto(s)'} vendidos em ${esc(LA)}</div>
+      <div class="prod-items">
+        ${listaF.map(it => `<button class="prod-item${it.k === sel ? ' on' : ''}" data-k="${esc(it.k)}"><span class="pi-name">${esc(it.k)}</span><span class="pi-meta"><span class="num">${fmtBRL(it.val)}</span> · ${it.cli.size} cli.</span><span class="minibar" style="width:${Math.max(2, it.val / maxV * 100)}%"></span></button>`).join('') || '<div class="empty">Nada encontrado.</div>'}
+      </div>
+    </aside>
+    <section style="min-width:0">
+      <div class="card" style="margin-bottom:14px"><div class="ccode">${porLinha ? 'Linha de produto' : 'Produto · linha ' + esc(linhaDe(sel))}</div><h2 style="font-size:19px;margin-top:2px">${esc(sel)}</h2><p class="sub" style="margin:4px 0 0">${esc(LA)} · ${esc(vendNome)}</p></div>
+      <div class="grid g4">
+        ${kpi('Venda líquida', fmtBRL(item.val), item.val, S.cmp ? valB : null)}
+        ${kpi('Clientes que compraram', `${fmtN(nComp)} <span class="ccode" style="font-size:14px">de ${fmtN(universo.size)}</span>`, nComp, S.cmp ? compB.size : null)}
+        ${kpi('Cobertura da carteira', fmtN(cobertura, 1) + '%', cobertura, cobB, S.prodUniv === 'carteira' ? 'sobre toda a carteira' : 'sobre os clientes que compraram no período')}
+        ${porLinha ? kpi('Produtos da linha vendidos', fmtN(item.prods.size), 0, null) : kpi('Preço médio (venda ÷ qtde)', fmtBRL(precoA), precoA, precoB, fmtN(item.q) + ' unidades')}
+      </div>
+      <div class="grid g2" style="margin-top:14px">
+        <div class="card"><h2>Venda mês a mês</h2><p class="sub">${S.mes === 'A' ? 'Todos os meses' : 'Meses de ' + S.ano} · ${esc(vendNome)}</p><div class="chart-box" style="height:230px"><canvas id="ch-pr-evol" role="img" aria-label="Venda mensal do item"></canvas></div></div>
+        <div class="card"><h2>Cobertura por vendedor</h2><p class="sub">% dos clientes ativos de cada vendedor que compraram ${porLinha ? 'algo da linha' : 'o produto'} · ${esc(LA)}</p>
+          <table class="t"><thead><tr><th>Vendedor</th><th class="r">Compraram</th><th class="r">Venda</th><th style="width:34%">Cobertura</th></tr></thead><tbody>
+          ${covRows.map(v => `<tr${S.vend === v.vc ? ' style="background:var(--surface-2)"' : ''}><td>${esc(S.vendNome[v.vc] || v.vc)}</td><td class="r num">${v.nc} de ${v.na}</td><td class="r num">${fmtBRL(v.val)}</td><td><div style="display:flex;align-items:center;gap:8px"><div style="flex:1;background:var(--surface-2);border-radius:3px;height:8px"><div class="minibar" style="margin:0;height:8px;width:${Math.max(v.pct ? 2 : 0, v.pct)}%"></div></div><span class="num" style="min-width:44px;text-align:right">${fmtN(v.pct, 0)}%</span></div></td></tr>`).join('')}
+          </tbody></table></div>
+      </div>
+      ${porLinha ? `<div class="card" style="margin-top:14px"><h2>Produtos da linha</h2><p class="sub">Clique para abrir o produto</p><div class="tbl-wrap" style="max-height:300px"><table class="t"><thead><tr><th>Produto</th><th class="r">Qtde</th><th class="r">Venda</th><th class="r">Clientes</th></tr></thead><tbody>
+        ${prodsLinha.map(([p, x]) => `<tr class="click-prod" data-p="${esc(p)}" style="cursor:pointer"><td><button class="link">${esc(p)}</button></td><td class="r num">${fmtN(x.q)}</td><td class="r num">${fmtBRL(x.val)}</td><td class="r num">${x.cli.size}</td></tr>`).join('')}
+      </tbody></table></div></div>` : ''}
+      <div class="toolbar" style="margin:18px 0 0">
+        <b style="font-size:15px">Clientes</b>
+        <span class="help">Não compraram, entre:</span>
+        <span class="seg" id="pr-univ"><button data-u="ativos" aria-pressed="${S.prodUniv === 'ativos'}">Clientes ativos no período</button><button data-u="carteira" aria-pressed="${S.prodUniv === 'carteira'}">Toda a carteira</button></span>
+      </div>
+      <div class="grid" style="margin-top:10px">
+        <div class="card"><h2 style="color:var(--good)">✓ Compraram · ${fmtN(nComp)}</h2><p class="sub">${esc(LA)}${S.cmp ? ' · comparado com ' + esc(LB) : ''}</p>
+          ${compradores.length ? `<div class="tbl-wrap" style="max-height:560px"><table class="t"><thead><tr><th>Cliente</th><th class="r">${porLinha ? 'Produtos' : 'Qtde'}</th><th class="r">Venda</th>${S.cmp ? `<th class="r">${esc(perLabelCurto(S.cmp))}</th>` : ''}</tr></thead><tbody>
+          ${compradores.map(([cc, c]) => `<tr class="click" data-cc="${esc(cc)}"><td><div class="cname">${esc(S.cliNome[cc])}</div><div class="ccode">cód. ${esc(cc)}${S.vend ? '' : ' · ' + esc(vendDe(cc))}</div></td><td class="r num">${porLinha ? c.prods.size : fmtN(c.q)}</td><td class="r num">${fmtBRL(c.val)}</td>${S.cmp ? `<td class="r">${compB.get(cc) ? deltaHTML(c.val, compB.get(cc)) : '<span class="badge ok">novo</span>'}</td>` : ''}</tr>`).join('')}
+          </tbody></table></div>` : '<div class="empty">Ninguém comprou neste período.</div>'}</div>
+        <div class="card"><h2 style="color:var(--crit)">✕ Não compraram · ${fmtN(nao.length)}</h2><p class="sub">${S.cmp && perdidos ? `<b>${perdidos}</b> compravam em ${esc(LB)} e pararam · ` : ''}oportunidades de venda, com quem já comprou antes no topo</p>
+          ${nao.length ? `<div class="tbl-wrap" style="max-height:480px"><table class="t"><thead><tr><th>Cliente</th><th>Histórico ${porLinha ? 'da linha' : 'do produto'}</th><th class="r">Compra total no período (todos os produtos)</th></tr></thead><tbody>
+          ${nao.map(x => `<tr class="click" data-cc="${esc(x.cc)}"><td><div class="cname">${esc(S.cliNome[x.cc] || x.cc)}</div><div class="ccode">cód. ${esc(x.cc)}${S.vend ? '' : ' · ' + esc(vendDe(x.cc))}</div></td><td>${x.emB ? `<span class="badge crit">Parou (comprava em ${esc(perLabelCurto(S.cmp))})</span>` : x.ult ? `<span class="badge warn">Já comprou · ${mesLabel(x.ult)}</span>` : '<span class="badge gray">Nunca comprou</span>'}</td><td class="r num">${x.tot ? fmtBRL(x.tot) : '<span class="ccode">sem compra</span>'}</td></tr>`).join('')}
+          </tbody></table></div>` : '<div class="empty">Todos os clientes compraram. 🎉</div>'}</div>
+      </div>
+    </section>
+  </div>`;
+
+  // gráfico mensal do item
+  const ms = S.mes === 'A' ? S.meses : S.meses.filter(m => m.startsWith(S.ano));
+  const selM = new Set(perMeses(S.mes)), cmpM = new Set(S.cmp ? perMeses(S.cmp) : []);
+  const vals = ms.map(m => fatosFiltrados(m).reduce((s, r) => s + (bate(r) ? r.val : 0), 0));
+  mkChart('ch-pr-evol', {type: 'bar', data: {labels: ms.map(m => mesLabel(m) + (S.mesInfo[m].parcial ? '*' : '')), datasets: [barDs('Venda', vals, ms.map(m => selM.has(m) && S.mes !== 'A' && !S.mes.startsWith('Y') ? css('--s1') : cmpM.has(m) ? css('--s2') : selM.has(m) ? css('--s1') : css('--s-neutral')), {maxBarThickness: 36})]}});
+
+  $$('#pr-modo button').forEach(b => b.onclick = () => { S.prodModo = b.dataset.m; S.prodBusca = ''; renderProdutos(); });
+  $$('#pr-univ button').forEach(b => b.onclick = () => { S.prodUniv = b.dataset.u; renderProdutos(); });
+  $$('.prod-item').forEach(b => b.onclick = () => { S.prodSel[modo] = b.dataset.k; renderProdutos(); $('#main section')?.scrollIntoView({block: 'start', behavior: 'smooth'}); });
+  $$('tr.click-prod').forEach(tr => tr.onclick = () => { S.prodModo = 'produto'; S.prodSel.produto = tr.dataset.p; S.prodBusca = ''; renderProdutos(); window.scrollTo(0, 0); });
+  $$('#main tr.click').forEach(tr => tr.addEventListener('click', () => abrirCliente(tr.dataset.cc)));
+  const inp = $('#pr-busca'); inp.addEventListener('input', () => { S.prodBusca = inp.value; const pos = inp.selectionStart; const sc = $('.prod-items')?.scrollTop; renderProdutos(); const n = $('#pr-busca'); n.focus(); n.setSelectionRange(pos, pos); });
+}
+
+/* ---------------- CLIENTES ---------------- */
+function renderClientes(){
+  const A = agg(perFatos(S.mes)), B = S.cmp ? agg(perFatos(S.cmp)) : null;
+  const ccs = new Set([...clientesDoVendedor(), ...A.cli.keys(), ...(B ? B.cli.keys() : [])]);
+  let rows = [...ccs].map(cc => {
+    const a = A.cli.get(cc)?.val || 0, b = B?.cli.get(cc)?.val || 0, s = situacao(cc);
+    return {cc, nome: S.cliNome[cc] || cc, vend: S.vendNome[vendAtual(cc)] || '', val: a, cmp: b, var: b ? (a - b) / Math.abs(b) : (a ? Infinity : 0), dias: s.dias ?? (s.tipo in STATUS_TXT ? 9999 : -1), s, rec: S.recencia[cc]?.fim || ''};
+  });
+  const q = S.cliBusca.trim().toLowerCase();
+  if (q) rows = rows.filter(r => r.nome.toLowerCase().includes(q) || r.cc === q);
+  const f = S.cliFiltro;
+  if (f === 'compraram') rows = rows.filter(r => r.val > 0);
+  if (f === 'alerta') rows = rows.filter(r => r.s.tipo === 'alerta' || r.s.tipo === 'atencao');
+  if (f === 'marcados') rows = rows.filter(r => r.s.tipo in STATUS_TXT);
+  const {k, dir} = S.cliSort;
+  rows.sort((x, y) => (typeof x[k] === 'string' ? x[k].localeCompare(y[k]) : (x[k] - y[k])) * dir || x.nome.localeCompare(y.nome));
+  const th = (key, lbl, r) => `<th class="sort ${r ? 'r' : ''}" data-k="${key}">${lbl}${k === key ? (dir > 0 ? ' ↑' : ' ↓') : ''}</th>`;
+  $('#main').innerHTML = `<div class="card">
+    <div class="toolbar">
+      <input class="i" id="cli-busca" placeholder="Buscar cliente por nome ou código…" value="${esc(S.cliBusca)}">
+      <span class="seg" id="cli-filtro">${[['todos','Todos'],['compraram','Compraram no período'],['alerta','Sem compra'],['marcados','Fechou/Devendo']].map(([v, l]) => `<button data-f="${v}" aria-pressed="${f===v}">${l}</button>`).join('')}</span>
+      <span class="help" style="margin-left:auto">${rows.length} cliente(s) · clique para ver produtos</span>
+    </div>
+    <div class="tbl-wrap"><table class="t"><thead><tr>
+      ${th('nome','Cliente')}${S.vend ? '' : th('vend','Vendedor')}${th('val', esc(perLabelCurto(S.mes)), 1)}${B ? th('cmp', esc(perLabelCurto(S.cmp)), 1) + th('var','Var.', 1) : ''}${th('rec','Última compra')}${th('dias','Situação')}
+    </tr></thead><tbody>
+    ${rows.map(r => `<tr class="click" data-cc="${esc(r.cc)}"><td><div class="cname">${esc(r.nome)}</div><div class="ccode">cód. ${esc(r.cc)}</div></td>${S.vend ? '' : `<td>${esc(r.vend)}</td>`}<td class="r num">${r.val ? fmtBRL(r.val) : '<span class="ccode">—</span>'}</td>${B ? `<td class="r num">${r.cmp ? fmtBRL(r.cmp) : '<span class="ccode">—</span>'}</td><td class="r">${deltaHTML(r.val, r.cmp)}</td>` : ''}<td class="num">${ultimaCompraTxt(r.cc)}</td><td>${badgeSit(r.cc)}</td></tr>`).join('') || `<tr><td colspan="7" class="empty">Nenhum cliente encontrado.</td></tr>`}
+    </tbody></table></div></div>`;
+  const inp = $('#cli-busca');
+  inp.addEventListener('input', () => { S.cliBusca = inp.value; const pos = inp.selectionStart; renderClientes(); const n = $('#cli-busca'); n.focus(); n.setSelectionRange(pos, pos); });
+  $$('#cli-filtro button').forEach(b => b.addEventListener('click', () => { S.cliFiltro = b.dataset.f; renderClientes(); }));
+  $$('#main th.sort').forEach(h => h.addEventListener('click', () => { const kk = h.dataset.k; S.cliSort = {k: kk, dir: S.cliSort.k === kk ? -S.cliSort.dir : (['nome','vend'].includes(kk) ? 1 : -1)}; renderClientes(); }));
+  $$('#main tr.click').forEach(tr => tr.addEventListener('click', () => abrirCliente(tr.dataset.cc)));
+}
+
+/* ---------------- ALERTAS ---------------- */
+function renderAlertas(){
+  const base = clientesDoVendedor();
+  const lst = base.map(cc => ({cc, s: situacao(cc)}));
+  // valor de referência: média mensal nos meses em que comprou
+  const porMes = {};
+  for (const m of S.meses) for (const r of S.fatos[m]) { const o = (porMes[r.cc] ||= {}); o[m] = (o[m] || 0) + r.val; }
+  const MED = {}; for (const [cc, o] of Object.entries(porMes)) { const v = Object.values(o).filter(x => x > 0); MED[cc] = v.length ? v.reduce((a, b) => a + b, 0) / v.length : 0; }
+  const media = cc => MED[cc] || 0;
+  const al = lst.filter(x => x.s.tipo === 'alerta').sort((a,b) => media(b.cc) - media(a.cc));
+  const at = lst.filter(x => x.s.tipo === 'atencao').sort((a,b) => media(b.cc) - media(a.cc));
+  const mk = lst.filter(x => x.s.tipo in STATUS_TXT).sort((a,b) => (b.s.st.em || '').localeCompare(a.s.st.em || ''));
+  const tbl = (arr, vazio, extra) => arr.length ? `<div class="tbl-wrap" style="max-height:520px"><table class="t"><thead><tr><th>Cliente</th>${S.vend ? '' : '<th>Vendedor</th>'}<th>Última compra</th><th class="r">Média mensal</th><th>${extra ? 'Motivo' : 'Situação'}</th></tr></thead><tbody>
+    ${arr.map(({cc, s}) => `<tr class="click" data-cc="${esc(cc)}"><td><div class="cname">${esc(S.cliNome[cc])}</div><div class="ccode">cód. ${esc(cc)}</div></td>${S.vend ? '' : `<td>${esc(S.vendNome[vendAtual(cc)] || '')}</td>`}<td class="num">${ultimaCompraTxt(cc)}</td><td class="r num">${fmtBRL(media(cc))}</td><td>${badgeSit(cc)}${extra && s.st?.obs ? `<div class="ccode" style="max-width:280px">${esc(s.st.obs)}</div>` : ''}</td></tr>`).join('')}
+    </tbody></table></div>` : `<div class="empty">${vazio}</div>`;
+  $('#main').innerHTML = `
+    <div class="card" style="margin-bottom:14px"><div class="help">O relatório não traz a data de cada venda, só o período do arquivo. A <b>última compra</b> é o fim do último arquivo (semana ou mês) em que o cliente aparece, comparado com a data mais recente carregada (<b>${isoToBR(S.dataRef)}</b>). Mais de ${ALERTA_DIAS} dias acende o alerta. Clientes marcados como <b>Fechou</b>, <b>Devendo</b> ou <b>Outro motivo</b> saem do alerta e ficam na lista de baixo.</div></div>
+    <div class="card"><h2>⚠ Sem compra há mais de 2 semanas · ${al.length}</h2><p class="sub">Maiores clientes primeiro (pela média mensal de compra). Clique para ver os produtos e registrar o motivo.</p>${tbl(al, 'Nenhum cliente em alerta. 🎉')}</div>
+    <div class="grid g2" style="margin-top:14px">
+      <div class="card"><h2>◷ Atenção: entre 8 e 14 dias · ${at.length}</h2><p class="sub">Ainda não é alerta, mas vale um contato. Maiores clientes primeiro.</p>${tbl(at, 'Ninguém nesta faixa.')}</div>
+      <div class="card"><h2>Motivo registrado · ${mk.length}</h2><p class="sub">Clientes que fecharam, estão devendo ou pararam por outro motivo.</p>${tbl(mk, 'Nenhum cliente marcado ainda.', true)}</div>
+    </div>`;
+  $$('#main tr.click').forEach(tr => tr.addEventListener('click', () => abrirCliente(tr.dataset.cc)));
+}
+
+/* ---------------- DETALHE DO CLIENTE ---------------- */
+function abrirCliente(cc){
+  const nome = S.cliNome[cc] || cc;
+  const doMes = k => { const map = new Map(); for (const r of perMeses(k).flatMap(m => S.fatos[m])) if (r.cc === cc) { const p = map.get(r.p) || {q: 0, val: 0}; p.q += r.q; p.val += r.val; map.set(r.p, p); } return map; };
+  const A = doMes(S.mes), B = S.cmp ? doMes(S.cmp) : null;
+  const prods = [...new Set([...A.keys(), ...(B ? B.keys() : [])])].map(p => ({p, a: A.get(p), b: B?.get(p)})).sort((x, y) => (y.a?.val || 0) - (x.a?.val || 0) || (y.b?.val || 0) - (x.b?.val || 0));
+  const totA = [...A.values()].reduce((s, x) => s + x.val, 0), totB = B ? [...B.values()].reduce((s, x) => s + x.val, 0) : null;
+  const hist = S.meses.map(m => { let v = 0; for (const r of S.fatos[m]) if (r.cc === cc) v += r.val; return v; });
+  const s = situacao(cc), st = S.status[cc] || {status: '', obs: ''};
+  const vend = S.vendNome[vendAtual(cc)] || '—';
+  $('#drawer').innerHTML = `
+    <div class="drawer-head"><div style="flex:1;min-width:0"><h3>${esc(nome)}</h3><div class="ccode">cód. ${esc(cc)} · Vendedor: ${esc(vend)}</div><div style="margin-top:8px">${badgeSit(cc)}</div></div><button class="btn sm" id="dr-close" aria-label="Fechar">✕ Fechar</button></div>
+    <div class="drawer-body">
+      <div class="facts">
+        <div class="fact"><div class="lbl">${esc(perLabel(S.mes))}</div><div class="val num">${fmtBRL(totA)}</div>${B ? `<div class="ccode">${deltaHTML(totA, totB)} vs ${esc(perLabel(S.cmp))}</div>` : ''}</div>
+        <div class="fact"><div class="lbl">${B ? esc(perLabel(S.cmp)) : 'Comparação'}</div><div class="val num">${B ? fmtBRL(totB) : '—'}</div></div>
+        <div class="fact"><div class="lbl">Última compra</div><div class="val" style="font-size:14px">${ultimaCompraTxt(cc)}</div></div>
+      </div>
+      <div class="card"><h2>Produtos comprados · ${esc(perLabel(S.mes))}</h2><p class="sub">${A.size} produto(s)${B ? ' · comparado com ' + esc(perLabel(S.cmp)) : ''}</p>
+        ${prods.length ? `<div class="tbl-wrap" style="max-height:420px"><table class="t"><thead><tr><th>Produto</th><th class="r">Qtde</th><th class="r">Valor</th>${B ? `<th class="r">Qtde ${esc(perLabel(S.cmp))}</th><th class="r">Valor ${esc(perLabel(S.cmp))}</th>` : ''}</tr></thead><tbody>
+        ${prods.map(x => `<tr><td>${esc(x.p)}${B && !x.a ? ' <span class="badge warn">não comprou</span>' : ''}${B && x.a && !x.b ? ' <span class="badge ok">novo</span>' : ''}</td><td class="r num">${x.a ? fmtN(x.a.q) : '—'}</td><td class="r num">${x.a ? fmtBRL(x.a.val) : '—'}</td>${B ? `<td class="r num">${x.b ? fmtN(x.b.q) : '—'}</td><td class="r num">${x.b ? fmtBRL(x.b.val) : '—'}</td>` : ''}</tr>`).join('')}
+        </tbody></table></div>` : `<div class="empty">Este cliente não comprou em ${esc(perLabel(S.mes))}${B ? ' nem em ' + esc(perLabel(S.cmp)) : ''}.</div>`}
+      </div>
+      <div class="card"><h2>Histórico mensal</h2><p class="sub">Venda líquida por mês (todos os vendedores)</p><div class="chart-box" style="height:200px"><canvas id="ch-cli"></canvas></div></div>
+      <div class="card"><h2>Situação do cliente</h2><p class="sub">Registre por que o cliente parou de comprar. Com um motivo marcado, ele sai do alerta.</p>
+        <div class="status-opts" id="st-opts">
+          ${[['', 'Normal (sem motivo)'], ['fechou', 'Fechou'], ['devendo', 'Devendo'], ['outro', 'Outro motivo']].map(([v, l]) => `<label><input type="radio" name="st" value="${v}" ${st.status === v ? 'checked' : ''}> ${l}</label>`).join('')}
+        </div>
+        <label class="f" for="st-obs">Observação</label>
+        <textarea class="i" id="st-obs" rows="3" maxlength="1000" placeholder="Ex.: restaurante fechou em fevereiro; deve 2 boletos de janeiro; mudou de fornecedor…">${esc(st.obs || '')}</textarea>
+        <div class="row-actions"><button class="btn primary" id="st-save">Salvar situação</button><span id="st-msg" class="help"></span></div>
+        ${st.em ? `<div class="meta-line">Última alteração: ${esc(st.por || '')} em ${new Date(st.em).toLocaleString('pt-BR')}</div>` : ''}
+      </div>
+    </div>`;
+  $('#drawer').classList.remove('hidden'); $('#drawer-bg').classList.remove('hidden'); $('#drawer').scrollTop = 0;
+  mkChart('ch-cli', {type: 'bar', data: {labels: S.meses.map(mesLabel), datasets: [barDs('Venda', hist, S.meses.map(m => perMeses(S.mes).includes(m) ? css('--s1') : S.cmp && perMeses(S.cmp).includes(m) ? css('--s2') : css('--s-neutral')), {maxBarThickness: 40})]}});
+  $('#dr-close').onclick = fecharDrawer;
+  $('#st-save').onclick = async () => {
+    const btn = $('#st-save'); btn.disabled = true; $('#st-msg').textContent = 'Salvando…';
+    const status = ($('#st-opts input:checked') || {}).value || '';
+    const obj = {status, obs: $('#st-obs').value.trim(), por: S.email, em: new Date().toISOString(), nome};
+    try {
+      await S.store.setStatus(cc, obj);
+      if (!obj.status && !obj.obs) delete S.status[cc]; else S.status[cc] = obj;
+      toast('Situação salva'); abrirCliente(cc); render();
+    } catch (e) { $('#st-msg').textContent = erroFirebase(e); btn.disabled = false; }
+  };
+}
+function fecharDrawer(){ $('#drawer').classList.add('hidden'); $('#drawer-bg').classList.add('hidden'); if (charts['ch-cli']) { charts['ch-cli'].destroy(); delete charts['ch-cli']; } }
+$('#drawer-bg').addEventListener('click', fecharDrawer);
+document.addEventListener('keydown', e => { if (e.key === 'Escape') fecharDrawer(); });
+
+/* ---------------- ARQUIVOS (admin) ---------------- */
+let pendentes = [];
+function renderArquivos(){
+  if (!isAdmin()) { S.tab = 'painel'; return render(); }
+  const lst = [...S.arquivos].sort((a,b) => a.inicio < b.inicio ? 1 : -1);
+  const usado = a => S.mesInfo[a.mes]?.usados.some(u => u.id === a.id);
+  $('#main').innerHTML = `
+    <div class="card">
+      <h2>Carregar relatório de vendas</h2>
+      <p class="sub">Use o <b>Relatório de Análise de Vendas - Vendedor - Cliente (Detalhado) - Produto</b> exportado em <b>HTML</b>. O sistema identifica o período. Se for de 1º ao último dia do mês, é tratado como <b>mensal</b>; se não, como <b>semanal</b>. O mensal substitui as semanas daquele mês no total. Carregar de novo o mesmo período substitui o anterior.</p>
+      <label class="drop" id="drop"><input type="file" id="file" accept=".html,.htm" multiple hidden><strong>Arraste os arquivos aqui ou clique para escolher</strong><span>Pode carregar vários de uma vez (.html)</span></label>
+      <div id="pend"></div>
+    </div>
+    <div class="card" style="margin-top:14px"><h2>Arquivos carregados · ${lst.length}</h2><p class="sub">"Substituído" = semana que já está coberta pelo fechamento mensal (continua servindo para a data da última compra).</p>
+      ${lst.length ? `<div class="tbl-wrap"><table class="t"><thead><tr><th>Tipo</th><th>Período</th><th>Mês</th><th class="r">Venda líquida</th><th class="r">Linhas</th><th>Enviado</th><th>Uso</th><th></th></tr></thead><tbody>
+      ${lst.map(a => `<tr><td><span class="badge ${a.tipo === 'mensal' ? 'outro' : 'gray'}">${a.tipo === 'mensal' ? 'Mensal' : 'Semanal'}</span></td><td class="num">${isoToBR(a.inicio)} a ${isoToBR(a.fim)}</td><td>${mesLabel(a.mes)}</td><td class="r num">${fmtBRL(a.total)}</td><td class="r num">${fmtN(a.linhas)}</td><td class="ccode">${esc(a.enviadoPor || '')}<br>${a.enviadoEm ? new Date(a.enviadoEm).toLocaleString('pt-BR') : ''}</td><td>${usado(a) ? '<span class="badge ok">Em uso</span>' : '<span class="badge gray">Substituído</span>'}</td><td class="r"><button class="btn sm danger" data-del="${esc(a.id)}">Excluir</button></td></tr>`).join('')}
+      </tbody></table></div>` : '<div class="empty">Nenhum arquivo ainda.</div>'}
+    </div>`;
+  const drop = $('#drop'), inp = $('#file');
+  inp.addEventListener('change', () => lerArquivos(inp.files));
+  ['dragenter','dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('over'); }));
+  ['dragleave','drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('over'); }));
+  drop.addEventListener('drop', e => lerArquivos(e.dataTransfer.files));
+  $$('[data-del]').forEach(b => b.addEventListener('click', async () => {
+    const a = S.arquivos.find(x => x.id === b.dataset.del);
+    if (!confirm(`Excluir o arquivo ${a.tipo} de ${isoToBR(a.inicio)} a ${isoToBR(a.fim)}?`)) return;
+    b.disabled = true;
+    try { await S.store.deleteArquivo(a.id); S.arquivos = S.arquivos.filter(x => x.id !== a.id); delete S.payloads[a.id]; recalcular(); ajustarMes(); toast('Arquivo excluído'); render(); }
+    catch (e) { alert(erroFirebase(e)); b.disabled = false; }
+  }));
+  renderPendentes();
+}
+async function lerArquivos(files){
+  for (const f of files) {
+    try {
+      const buf = await f.arrayBuffer();
+      let txt = new TextDecoder('utf-8').decode(buf);
+      if (txt.includes('\uFFFD')) txt = new TextDecoder('windows-1252').decode(buf);
+      pendentes.push({ok: true, ...parseRelatorio(txt, f.name)});
+    } catch (e) { pendentes.push({ok: false, nomeArquivo: f.name, erro: e.message}); }
+  }
+  renderPendentes();
+}
+function renderPendentes(){
+  const el = $('#pend'); if (!el) return;
+  el.innerHTML = pendentes.map((p, i) => {
+    if (!p.ok) return `<div class="preview"><h4>${esc(p.nomeArquivo)}</h4><div class="msg err">${esc(p.erro)}</div><div class="row-actions"><button class="btn sm" data-rm="${i}">Remover</button></div></div>`;
+    p.mes = p.tipo === 'mensal' ? p.inicio.slice(0,7) : mesDoPeriodo(p.inicio, p.fim);
+    const id = idArquivo(p), existe = S.arquivos.find(a => a.id === id);
+    const confere = p.totalRelatorio == null ? null : Math.abs(p.totalRelatorio - p.total) < 1;
+    const semanasCobertas = p.tipo === 'mensal' ? S.arquivos.filter(a => a.tipo === 'semanal' && a.mes === p.mes).length : 0;
+    const temMensal = p.tipo === 'semanal' && S.arquivos.some(a => a.tipo === 'mensal' && a.mes === p.mes);
+    return `<div class="preview"><h4>${esc(p.nomeArquivo)}</h4>
+      <div class="kv">
+        <div><b>Período</b>${isoToBR(p.inicio)} a ${isoToBR(p.fim)}</div>
+        <div><b>Tipo</b><select class="i" data-tipo="${i}" style="padding:4px 8px;margin-top:2px"><option value="semanal" ${p.tipo==='semanal'?'selected':''}>Semanal</option><option value="mensal" ${p.tipo==='mensal'?'selected':''}>Mensal</option></select></div>
+        <div><b>Conta no mês</b>${mesLabel(p.mes)}</div>
+        <div><b>Venda líquida</b><span class="num">${fmtBRL(p.total)}</span></div>
+        <div><b>Linhas</b>${fmtN(p.linhas)}</div>
+        <div><b>Vendedores</b>${p.vendedores}</div>
+        <div><b>Clientes</b>${p.clientes}</div>
+        <div><b>Produtos</b>${p.produtos}</div>
+      </div>
+      ${confere === true ? `<div class="msg ok">✓ Confere com o total do relatório (${fmtBRL(p.totalRelatorio)}).</div>` : confere === false ? `<div class="msg err">A soma das linhas (${fmtBRL(p.total)}) não bate com o total do relatório (${fmtBRL(p.totalRelatorio)}). Confira o arquivo antes de salvar.</div>` : ''}
+      ${existe ? `<div class="msg info">Já existe um arquivo ${p.tipo} para este período. Ao salvar, ele será <b>substituído</b>.</div>` : ''}
+      ${semanasCobertas ? `<div class="msg info">Este fechamento mensal vai substituir ${semanasCobertas} arquivo(s) semanal(is) de ${mesLabel(p.mes)} no total do mês.</div>` : ''}
+      ${temMensal ? `<div class="msg info">${mesLabel(p.mes)} já tem fechamento mensal, então esta semana não entra no total do mês. Ela só atualiza a data da última compra e o gráfico semanal.</div>` : ''}
+      <div class="row-actions"><button class="btn primary" data-save="${i}">Salvar no sistema</button><button class="btn" data-rm="${i}">Cancelar</button><span class="help" id="sv-${i}"></span></div>
+    </div>`;
+  }).join('') + (pendentes.filter(p => p.ok).length > 1 ? `<div class="row-actions"><button class="btn primary" id="save-all">Salvar todos (${pendentes.filter(p => p.ok).length})</button></div>` : '');
+  $$('[data-rm]').forEach(b => b.onclick = () => { pendentes.splice(+b.dataset.rm, 1); renderPendentes(); });
+  $$('[data-tipo]').forEach(s => s.onchange = () => { pendentes[+s.dataset.tipo].tipo = s.value; renderPendentes(); });
+  $$('[data-save]').forEach(b => b.onclick = () => salvarPendentes([+b.dataset.save]));
+  $('#save-all')?.addEventListener('click', () => salvarPendentes(pendentes.map((p, i) => p.ok ? i : -1).filter(i => i >= 0)));
+}
+async function salvarPendentes(idxs){
+  $$('#pend button').forEach(b => b.disabled = true);
+  const feitos = [];
+  for (const i of idxs) {
+    const p = pendentes[i]; const msg = $('#sv-' + i); if (msg) msg.textContent = 'Salvando…';
+    const id = idArquivo(p);
+    const meta = {tipo: p.tipo, inicio: p.inicio, fim: p.fim, mes: p.mes, nomeArquivo: p.nomeArquivo, emissao: p.emissao, total: p.total, qtd: p.qtd, linhas: p.linhas, clientes: p.clientes, enviadoPor: S.email, enviadoEm: new Date().toISOString()};
+    try {
+      await S.store.saveArquivo(id, meta, p.payload);
+      S.arquivos = S.arquivos.filter(a => a.id !== id).concat({id, ...meta});
+      S.payloads[id] = decode(p.payload);
+      feitos.push(i);
+    } catch (e) { if (msg) msg.textContent = erroFirebase(e); }
+  }
+  pendentes = pendentes.filter((_, i) => !feitos.includes(i));
+  recalcular(); if (feitos.length) { ajustarMes(true); toast(feitos.length + ' arquivo(s) salvo(s)'); }
+  render();
+}
+
+/* ---------------- USUÁRIOS (admin) ---------------- */
+async function renderUsuarios(){
+  if (!isAdmin()) { S.tab = 'painel'; return render(); }
+  $('#main').innerHTML = `<div class="grid g32">
+    <div class="card"><h2>Usuários com acesso</h2><p class="sub"><b>Administrador</b>: carrega arquivos e gerencia usuários. <b>Visualizador</b>: consulta o painel e registra a situação dos clientes.</p><div id="u-list"><div class="empty">Carregando…</div></div></div>
+    <div class="card"><h2>Novo usuário</h2><p class="sub">Crie um login com e-mail e senha. Você pode usar um login só para todos os vendedores ou um para cada.</p>
+      <form id="u-form">
+        <label class="f" for="u-nome">Nome</label><input class="i" id="u-nome" placeholder="Ex.: Vendedores / Gerente comercial">
+        <label class="f" for="u-email2">E-mail</label><input class="i" id="u-email2" type="email" required>
+        <label class="f" for="u-senha">Senha inicial (mín. 6 caracteres)</label><input class="i" id="u-senha" type="text" minlength="6" required>
+        <label class="f" for="u-papel">Acesso</label><select class="i" id="u-papel"><option value="visualizador">Visualizador</option><option value="admin">Administrador</option></select>
+        <button class="btn primary block" type="submit">Criar usuário</button>
+        <div id="u-msg"></div>
+      </form></div></div>`;
+  const carregar = async () => {
+    try {
+      const us = (await S.store.listUsuarios()).sort((a,b) => (a.email||'').localeCompare(b.email||''));
+      $('#u-list').innerHTML = us.length ? `<table class="t"><thead><tr><th>Nome</th><th>E-mail</th><th>Acesso</th><th></th></tr></thead><tbody>
+        ${us.map(u => `<tr><td>${esc(u.nome || '—')}</td><td>${esc(u.email)}</td><td><select class="i" data-papel="${esc(u.uid)}" style="padding:4px 8px;width:auto" ${u.email === S.email ? 'disabled' : ''}><option value="visualizador" ${u.papel==='visualizador'?'selected':''}>Visualizador</option><option value="admin" ${u.papel==='admin'?'selected':''}>Administrador</option></select></td><td class="r">${u.email === S.email ? '<span class="help">você</span>' : `<button class="btn sm danger" data-rmu="${esc(u.uid)}">Remover acesso</button>`}</td></tr>`).join('')}
+        </tbody></table>` : '<div class="empty">Nenhum usuário cadastrado.</div>';
+      $$('[data-papel]').forEach(s => s.onchange = async () => { try { await S.store.setPapel(s.dataset.papel, s.value); toast('Acesso atualizado'); } catch (e) { alert(erroFirebase(e)); } });
+      $$('[data-rmu]').forEach(b => b.onclick = async () => { if (!confirm('Remover o acesso deste usuário? Ele não conseguirá mais ver o painel.')) return; try { await S.store.removerUsuario(b.dataset.rmu); toast('Acesso removido'); carregar(); } catch (e) { alert(erroFirebase(e)); } });
+    } catch (e) { $('#u-list').innerHTML = `<div class="msg err">${esc(erroFirebase(e))}</div>`; }
+  };
+  carregar();
+  $('#u-form').onsubmit = async e => {
+    e.preventDefault(); const msg = $('#u-msg'); msg.className = 'msg info'; msg.textContent = 'Criando…';
+    try { await S.store.criarUsuario($('#u-email2').value.trim(), $('#u-senha').value, $('#u-nome').value.trim(), $('#u-papel').value); msg.className = 'msg ok'; msg.textContent = 'Usuário criado. Envie o e-mail e a senha para a pessoa.'; e.target.reset(); carregar(); }
+    catch (err) { msg.className = 'msg err'; msg.textContent = erroFirebase(err); }
+  };
+}
+
+/* =====================================================================
+   INICIALIZAÇÃO
+   ===================================================================== */
+function ajustarMes(force){
+  if (!S.meses.length) { S.ano = ''; S.mesSel = ''; S.mes = null; S.cmp = ''; return; }
+  const ultimo = S.meses[S.meses.length - 1];
+  if (force) { S.ano = ultimo.slice(0, 4); S.mesSel = ultimo; }
+  if (S.ano && !anosDisp().includes(S.ano)) { S.ano = ultimo.slice(0, 4); S.mesSel = ''; }
+  if (S.mesSel && !S.meses.includes(S.mesSel)) S.mesSel = '';
+  definirPeriodo(!force);
+}
+async function carregarDados(){
+  $('#main').innerHTML = '<div class="loading">Carregando dados de vendas…</div>';
+  const [arqs, status] = await Promise.all([S.store.listArquivos(), S.store.listStatus()]);
+  S.arquivos = arqs; S.status = status;
+  await Promise.all(arqs.map(async a => { if (!S.payloads[a.id]) S.payloads[a.id] = decode(await S.store.getPayload(a.id)); }));
+  recalcular(); ajustarMes(true);
+}
+function mostrarLogin(msg){
+  $('#app').classList.add('hidden'); $('#login').classList.remove('hidden');
+  $('#login-form').classList.toggle('hidden', DEMO); $('#forgot-wrap').classList.toggle('hidden', DEMO);
+  $('#demo-login').classList.toggle('hidden', !DEMO);
+  if (DEMO) $('#login-sub').innerHTML = '<b>Modo demonstração.</b> O Firebase ainda não foi configurado no <code>config.js</code>. Escolha um perfil para testar.';
+  $('#login-msg').innerHTML = msg ? `<div class="msg err">${esc(msg)}</div>` : '';
+}
+async function entrou(){
+  S.perfil = await S.store.perfil();
+  if (!S.perfil) { await S.store.logout(); return mostrarLogin('Seu usuário ainda não tem acesso ao painel. Peça ao administrador para cadastrar você.'); }
+  S.email = S.store.currentEmail();
+  $('#login').classList.add('hidden'); $('#app').classList.remove('hidden');
+  $('#u-email').textContent = S.email;
+  $('#u-role').innerHTML = (S.store.demo ? '<span class="pill demo">Demonstração</span> ' : '') + (isAdmin() ? '<span class="pill admin">Administrador</span>' : '<span class="pill view">Visualizador</span>');
+  $$('#tabs .adm').forEach(b => b.classList.toggle('hidden', !isAdmin()));
+  $('#demo-banner').classList.toggle('hidden', !S.store.demo);
+  if (!isAdmin() && (S.tab === 'arquivos' || S.tab === 'usuarios')) S.tab = 'painel';
+  try { await carregarDados(); } catch (e) { $('#main').innerHTML = `<div class="card"><div class="msg err">Não foi possível carregar os dados: ${esc(erroFirebase(e))}</div></div>`; return; }
+  if (!S.meses.length && isAdmin()) S.tab = 'arquivos';
+  render();
+}
+
+$('#tabs').addEventListener('click', e => { const b = e.target.closest('button[data-tab]'); if (!b) return; S.tab = b.dataset.tab; fecharDrawer(); render(); window.scrollTo(0, 0); });
+$('#f-ano').addEventListener('change', e => { S.ano = e.target.value; S.mesSel = ''; definirPeriodo(); render(); });
+$('#f-mes').addEventListener('change', e => { S.mesSel = e.target.value; definirPeriodo(); render(); });
+$('#f-cmp').addEventListener('change', e => { S.cmp = e.target.value; render(); });
+$('#f-vend').addEventListener('change', e => { S.vend = e.target.value; render(); });
+$('#logout').addEventListener('click', () => S.store.logout());
+$('#login-form').addEventListener('submit', async e => {
+  e.preventDefault(); const b = $('#lg-btn'); b.disabled = true; b.textContent = 'Entrando…';
+  try { await S.store.login($('#lg-email').value.trim(), $('#lg-pass').value); }
+  catch (err) { $('#login-msg').innerHTML = `<div class="msg err">${esc(erroFirebase(err))}</div>`; }
+  b.disabled = false; b.textContent = 'Entrar';
+});
+$('#forgot').addEventListener('click', async () => {
+  const email = $('#lg-email').value.trim();
+  if (!email) { $('#login-msg').innerHTML = '<div class="msg info">Digite seu e-mail no campo acima e clique de novo em "Esqueci minha senha".</div>'; return; }
+  try { await S.store.resetSenha(email); $('#login-msg').innerHTML = '<div class="msg ok">Enviamos um link para redefinir a senha. Confira seu e-mail (e a caixa de spam).</div>'; }
+  catch (err) { $('#login-msg').innerHTML = `<div class="msg err">${esc(erroFirebase(err))}</div>`; }
+});
+$$('[data-demo]').forEach(b => b.addEventListener('click', () => S.store.loginDemo(b.dataset.demo)));
+
+(async function boot(){
+  try { S.store = DEMO ? makeDemoStore() : await makeFirebaseStore(); }
+  catch (e) { document.body.innerHTML = `<div class="loading">Não foi possível conectar ao Firebase. Confira a internet e o arquivo config.js.<br><small>${esc(e.message)}</small></div>`; return; }
+  S.store.onAuth(u => { if (u) entrou(); else { S.perfil = null; mostrarLogin(); } });
+  await S.store.init();
+})();
+</script>
+</body>
+</html>
