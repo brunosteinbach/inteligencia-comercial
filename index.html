@@ -179,6 +179,12 @@ table.heat tr.empresa td{border-top:2px solid var(--border-strong);background:va
 .pi-meta{display:block;font-size:12px;color:var(--muted)}
 .prod-item .minibar{display:block;height:4px;margin-top:4px}
 @media (max-width:900px){.prod-layout{grid-template-columns:minmax(0,1fr)}.prod-list{position:static;max-height:420px}}
+.soma-bar{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;padding:9px 12px;margin:0 0 10px;border-radius:8px;background:var(--surface-2);border:1px solid var(--border);font-size:13.5px}
+.soma-bar.on{background:color-mix(in srgb,var(--s1) 10%,var(--surface));border-color:color-mix(in srgb,var(--s1) 35%,var(--border))}
+.soma-bar .btn{margin-left:auto}
+table.t th.chk,table.t td.chk{width:34px;padding-right:0;cursor:default}
+table.t td.chk input,table.t th.chk input{width:16px;height:16px;accent-color:var(--s1);cursor:pointer}
+table.t tfoot td{position:sticky;bottom:0;background:var(--surface)}
 .status-opts{display:flex;gap:8px;flex-wrap:wrap}
 .status-opts label{display:flex;align-items:center;gap:6px;border:1px solid var(--border-strong);border-radius:8px;padding:7px 10px;cursor:pointer;background:var(--surface);font-weight:600;font-size:13px}
 .status-opts input{accent-color:var(--brand)}
@@ -283,6 +289,20 @@ const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const fmtBRL = v => (v ?? 0).toLocaleString('pt-BR', {style:'currency', currency:'BRL'});
 const fmtBRLk = v => { const a = Math.abs(v); if (a >= 1e6) return 'R$ ' + (v/1e6).toLocaleString('pt-BR',{maximumFractionDigits:2}) + ' mi'; if (a >= 1e3) return 'R$ ' + (v/1e3).toLocaleString('pt-BR',{maximumFractionDigits:0}) + ' mil'; return fmtBRL(v); };
+// ordenação genérica: texto em ordem alfabética, números do maior para o menor no primeiro clique
+function ordenar(arr, getters, st){
+  const g = getters[st.k] || getters[Object.keys(getters)[0]];
+  return arr.sort((x, y) => {
+    const a = g(x), b = g(y);
+    let d;
+    if (typeof a === 'string' || typeof b === 'string') d = String(a ?? '').localeCompare(String(b ?? ''), 'pt-BR');
+    else d = (a ?? -Infinity) - (b ?? -Infinity);
+    return (d || 0) * st.dir;
+  });
+}
+function proximaOrdem(st, k, texto){ return {k, dir: st.k === k ? -st.dir : (texto ? 1 : -1)}; }
+function thOrd(st, k, lbl, cls = '', attrs = ''){ return `<th class="sort ${cls}" data-sk="${k}" ${attrs}>${lbl}${st.k === k ? (st.dir > 0 ? ' ↑' : ' ↓') : ''}</th>`; }
+const fmtQ = v => (v ?? 0).toLocaleString('pt-BR', {maximumFractionDigits: 2});
 const fmtN = (v, d = 0) => (v ?? 0).toLocaleString('pt-BR', {minimumFractionDigits:d, maximumFractionDigits:d});
 const fmtPct = v => (v > 0 ? '+' : '') + v.toLocaleString('pt-BR', {maximumFractionDigits:1}) + '%';
 const MESES = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
@@ -472,7 +492,7 @@ const S = {
   meses: [], mesInfo: {}, fatos: {}, // fatos[mes] = linhas efetivas do mês
   vendNome: {}, cliNome: {}, recencia: {}, dataRef: null,
   tab: 'painel', ano: '', mesSel: '', mes: null, cmp: '', vend: '',
-  cliSort: {k:'val', dir:-1}, vA: '', vB: '', vendSort: {k:'total', dir:-1}, vendProdF: 'todos', vendProdQ: '', prodModo: 'produto', prodSel: {produto: '', linha: ''}, prodBusca: '', prodUniv: 'ativos', cliBusca: '', cliFiltro: 'todos', rankN: 10
+  cliSort: {k:'val', dir:-1}, vA: '', vB: '', vendSort: {k:'total', dir:-1}, vendProdF: 'todos', vendProdQ: '', prodModo: 'produto', prodSel: {produto: '', linha: ''}, prodBusca: '', prodUniv: 'ativos', prodSortC: {k: 'val', dir: -1}, prodSortN: {k: 'hist', dir: -1}, prodMarc: new Set(), prodMarcKey: '', drSort: {k: 'av', dir: -1}, drBusca: '', drCli: '', vpSort: {k: 'tot', dir: -1}, cliBusca: '', cliFiltro: 'todos', rankN: 10
 };
 const isAdmin = () => S.perfil?.papel === 'admin';
 
@@ -899,7 +919,9 @@ function renderVendedores(){
   let pv = prodsU;
   if (S.vendProdF === 'soA') pv = soA; else if (S.vendProdF === 'soB') pv = soB; else if (S.vendProdF === 'ambos') pv = ambos;
   if (S.vendProdQ) { const q = S.vendProdQ.toLowerCase(); pv = pv.filter(x => x.p.toLowerCase().includes(q) || x.l.toLowerCase().includes(q)); }
-  pv = pv.sort((x, y) => y.tot - x.tot);
+  const pcA = x => x.a && a.nCli ? x.a.cli.size / a.nCli * 100 : null, pcB = x => x.b && b.nCli ? x.b.cli.size / b.nCli * 100 : null;
+  ordenar(pv, {tot: x => x.tot, p: x => x.p, l: x => x.l, aq: x => x.a?.q ?? null, av: x => x.a?.val ?? null, ac: pcA, bq: x => x.b?.q ?? null, bv: x => x.b?.val ?? null, bc: pcB}, S.vpSort);
+  const vs = S.vpSort;
   const pctCli = (v, pp) => pp && v.nCli ? pp.cli.size / v.nCli * 100 : 0;
 
   const kpiPar = (lbl, xa, xb, fmt) => `<div class="card kpi"><div class="lbl">${lbl}</div>
@@ -957,8 +979,8 @@ function renderVendedores(){
       <span class="seg" id="vp-f">${[['todos', `Todos (${prodsU.length})`], ['ambos', `Os dois vendem (${ambos.length})`], ['soA', `Só ${nA.split(' ')[0]} vende (${soA.length})`], ['soB', `Só ${nB.split(' ')[0]} vende (${soB.length})`]].map(([v, l]) => `<button data-f="${v}" aria-pressed="${S.vendProdF === v}">${esc(l)}</button>`).join('')}</span>
     </div>
     <div class="tbl-wrap" style="max-height:560px"><table class="t"><thead>
-      <tr><th rowspan="2">Produto</th><th rowspan="2">Linha</th><th colspan="3" class="r" style="color:var(--s1)">● ${esc(nA)}</th><th colspan="3" class="r" style="color:var(--s2)">● ${esc(nB)}</th></tr>
-      <tr><th class="r">Qtde</th><th class="r">Venda</th><th class="r">% clientes</th><th class="r">Qtde</th><th class="r">Venda</th><th class="r">% clientes</th></tr></thead><tbody>
+      <tr>${thOrd(vs, 'p', 'Produto', '', 'rowspan="2"')}${thOrd(vs, 'l', 'Linha', '', 'rowspan="2"')}<th colspan="3" class="r" style="color:var(--s1)">● ${esc(nA)}</th><th colspan="3" class="r" style="color:var(--s2)">● ${esc(nB)}</th></tr>
+      <tr>${thOrd(vs, 'aq', 'Qtde', 'r')}${thOrd(vs, 'av', 'Venda', 'r')}${thOrd(vs, 'ac', '% clientes', 'r')}${thOrd(vs, 'bq', 'Qtde', 'r')}${thOrd(vs, 'bv', 'Venda', 'r')}${thOrd(vs, 'bc', '% clientes', 'r')}</tr></thead><tbody>
       ${pv.slice(0, 300).map(x => `<tr><td>${esc(x.p)}</td><td class="ccode">${esc(x.l)}</td>
         <td class="r num">${x.a ? fmtN(x.a.q) : '—'}</td><td class="r num">${x.a ? fmtBRL(x.a.val) : '<span class="badge warn">não vende</span>'}</td><td class="r num">${x.a ? fmtN(pctCli(a, x.a), 0) + '%' : ''}</td>
         <td class="r num">${x.b ? fmtN(x.b.q) : '—'}</td><td class="r num">${x.b ? fmtBRL(x.b.val) : '<span class="badge warn">não vende</span>'}</td><td class="r num">${x.b ? fmtN(pctCli(b, x.b), 0) + '%' : ''}</td></tr>`).join('') || '<tr><td colspan="8" class="empty">Nenhum produto neste filtro.</td></tr>'}
@@ -984,6 +1006,7 @@ function renderVendedores(){
   $('#vA').onchange = e => { S.vA = e.target.value; if (S.vA === S.vB) S.vB = ''; renderVendedores(); };
   $('#vB').onchange = e => { S.vB = e.target.value; if (S.vA === S.vB) S.vA = ''; renderVendedores(); };
   $('#vSwap').onclick = () => { [S.vA, S.vB] = [S.vB, S.vA]; renderVendedores(); };
+  $$('#main th.sort[data-sk]').forEach(h => h.addEventListener('click', () => { S.vpSort = proximaOrdem(S.vpSort, h.dataset.sk, ['p', 'l'].includes(h.dataset.sk)); const y = window.scrollY; renderVendedores(); window.scrollTo(0, y); }));
   $$('#vp-f button').forEach(bt => bt.addEventListener('click', () => { S.vendProdF = bt.dataset.f; renderVendedores(); }));
   const inp = $('#vp-busca'); inp.addEventListener('input', () => { S.vendProdQ = inp.value; const pos = inp.selectionStart; renderVendedores(); const n = $('#vp-busca'); n.focus(); n.setSelectionRange(pos, pos); });
 }
@@ -1016,10 +1039,33 @@ function renderProdutos(){
   // histórico: último mês em que cada cliente comprou o item (fora do período atual)
   const mesesA = new Set(perMeses(S.mes)), ultimo = {};
   for (const m of S.meses) { if (mesesA.has(m)) continue; for (const r of fatosFiltrados(m)) if (bate(r) && r.val > 0 && (!ultimo[r.cc] || m > ultimo[r.cc])) ultimo[r.cc] = m; }
-  const compradores = [...comp.entries()].filter(([, c]) => c.val > 0 || c.q > 0).sort((a, b) => b[1].val - a[1].val);
+  // seleção de clientes para somar: zera quando muda o item ou o período
+  const marcKey = [modo, sel, S.mes, S.vend].join('|');
+  if (S.prodMarcKey !== marcKey) { S.prodMarc = new Set(); S.prodMarcKey = marcKey; }
+  const nomeDe = cc => S.cliNome[cc] || cc;
+  const cmpTxt = (x, y) => x.localeCompare(y, 'pt-BR');
+  const {k: ck, dir: cd} = S.prodSortC;
+  const compradores = [...comp.entries()].filter(([, c]) => c.val > 0 || c.q > 0).sort((a, b) => {
+    const [x, y] = [a, b];
+    let d = 0;
+    if (ck === 'nome') d = cmpTxt(nomeDe(x[0]), nomeDe(y[0]));
+    else if (ck === 'q') d = x[1].q - y[1].q;
+    else if (ck === 'prods') d = x[1].prods.size - y[1].prods.size;
+    else if (ck === 'cmp') { const vx = compB.get(x[0]) ? (x[1].val - compB.get(x[0])) / Math.abs(compB.get(x[0])) : Infinity, vy = compB.get(y[0]) ? (y[1].val - compB.get(y[0])) / Math.abs(compB.get(y[0])) : Infinity; d = vx === vy ? 0 : vx > vy ? 1 : -1; }
+    else d = x[1].val - y[1].val;
+    return d * cd || cmpTxt(nomeDe(x[0]), nomeDe(y[0]));
+  });
+  const totQ = compradores.reduce((s, [, c]) => s + c.q, 0), totV = compradores.reduce((s, [, c]) => s + c.val, 0);
+  const totCmp = compradores.reduce((s, [cc]) => s + (compB.get(cc) || 0), 0);
+  const {k: nk, dir: nd} = S.prodSortN;
+  const histRank = x => x.emB ? 2 : x.ult ? 1 : 0;
   const nao = [...universo].filter(cc => !(comp.get(cc)?.val > 0 || comp.get(cc)?.q > 0))
     .map(cc => ({cc, tot: ativos.get(cc) || 0, ult: ultimo[cc] || '', emB: compB.get(cc) > 0}))
-    .sort((a, b) => (b.emB - a.emB) || ((b.ult ? 1 : 0) - (a.ult ? 1 : 0)) || (b.tot - a.tot));
+    .sort((a, b) => {
+      let d = nk === 'nome' ? cmpTxt(nomeDe(a.cc), nomeDe(b.cc)) : nk === 'tot' ? a.tot - b.tot : (histRank(a) - histRank(b)) || (a.ult < b.ult ? -1 : a.ult > b.ult ? 1 : 0) || (a.tot - b.tot);
+      return d * nd || cmpTxt(nomeDe(a.cc), nomeDe(b.cc));
+    });
+  const thS = (grp, key, lbl, r) => { const st = grp === 'C' ? S.prodSortC : S.prodSortN; return `<th class="sort ${r ? 'r' : ''}" data-g="${grp}" data-k="${key}">${lbl}${st.k === key ? (st.dir > 0 ? ' ↑' : ' ↓') : ''}</th>`; };
   const nComp = compradores.length, nUniv = universo.size || 1;
   const cobertura = nComp / nUniv * 100;
   const cobB = S.cmp && ativosB.size ? compB.size / ativosB.size * 100 : null;
@@ -1075,12 +1121,13 @@ function renderProdutos(){
       </div>
       <div class="grid" style="margin-top:10px">
         <div class="card"><h2 style="color:var(--good)">✓ Compraram · ${fmtN(nComp)}</h2><p class="sub">${esc(LA)}${S.cmp ? ' · comparado com ' + esc(LB) : ''}</p>
-          ${compradores.length ? `<div class="tbl-wrap" style="max-height:560px"><table class="t"><thead><tr><th>Cliente</th><th class="r">${porLinha ? 'Produtos' : 'Qtde'}</th><th class="r">Venda</th>${S.cmp ? `<th class="r">${esc(perLabelCurto(S.cmp))}</th>` : ''}</tr></thead><tbody>
-          ${compradores.map(([cc, c]) => `<tr class="click" data-cc="${esc(cc)}"><td><div class="cname">${esc(S.cliNome[cc])}</div><div class="ccode">cód. ${esc(cc)}${S.vend ? '' : ' · ' + esc(vendDe(cc))}</div></td><td class="r num">${porLinha ? c.prods.size : fmtN(c.q)}</td><td class="r num">${fmtBRL(c.val)}</td>${S.cmp ? `<td class="r">${compB.get(cc) ? deltaHTML(c.val, compB.get(cc)) : '<span class="badge ok">novo</span>'}</td>` : ''}</tr>`).join('')}
-          </tbody></table></div>` : '<div class="empty">Ninguém comprou neste período.</div>'}</div>
+          ${compradores.length ? `<div class="soma-bar" id="pr-soma"></div>
+          <div class="tbl-wrap" style="max-height:560px"><table class="t" id="pr-comp"><thead><tr><th class="chk"><input type="checkbox" id="pr-all" title="Marcar todos" aria-label="Marcar todos"></th>${thS('C', 'nome', 'Cliente')}${porLinha ? thS('C', 'prods', 'Produtos', 1) : ''}${thS('C', 'q', 'Qtde', 1)}${thS('C', 'val', 'Venda', 1)}${S.cmp ? thS('C', 'cmp', esc(perLabelCurto(S.cmp)), 1) : ''}</tr></thead><tbody>
+          ${compradores.map(([cc, c]) => `<tr class="click" data-cc="${esc(cc)}"><td class="chk"><input type="checkbox" data-marc="${esc(cc)}" ${S.prodMarc.has(cc) ? 'checked' : ''} aria-label="Somar ${esc(nomeDe(cc))}"></td><td><div class="cname">${esc(nomeDe(cc))}</div><div class="ccode">cód. ${esc(cc)}${S.vend ? '' : ' · ' + esc(vendDe(cc))}</div></td>${porLinha ? `<td class="r num">${c.prods.size}</td>` : ''}<td class="r num">${fmtQ(c.q)}</td><td class="r num">${fmtBRL(c.val)}</td>${S.cmp ? `<td class="r">${compB.get(cc) ? deltaHTML(c.val, compB.get(cc)) : '<span class="badge ok">novo</span>'}</td>` : ''}</tr>`).join('')}
+          </tbody><tfoot><tr><td></td><td><b>Total · ${fmtN(nComp)} cliente(s)</b></td>${porLinha ? `<td class="r num"><b>${fmtN(item.prods.size)}</b></td>` : ''}<td class="r num"><b>${fmtQ(totQ)}</b></td><td class="r num"><b>${fmtBRL(totV)}</b></td>${S.cmp ? `<td class="r">${deltaHTML(totV, totCmp)}</td>` : ''}</tr></tfoot></table></div>` : '<div class="empty">Ninguém comprou neste período.</div>'}</div>
         <div class="card"><h2 style="color:var(--crit)">✕ Não compraram · ${fmtN(nao.length)}</h2><p class="sub">${S.cmp && perdidos ? `<b>${perdidos}</b> compravam em ${esc(LB)} e pararam · ` : ''}oportunidades de venda, com quem já comprou antes no topo</p>
-          ${nao.length ? `<div class="tbl-wrap" style="max-height:480px"><table class="t"><thead><tr><th>Cliente</th><th>Histórico ${porLinha ? 'da linha' : 'do produto'}</th><th class="r">Compra total no período (todos os produtos)</th></tr></thead><tbody>
-          ${nao.map(x => `<tr class="click" data-cc="${esc(x.cc)}"><td><div class="cname">${esc(S.cliNome[x.cc] || x.cc)}</div><div class="ccode">cód. ${esc(x.cc)}${S.vend ? '' : ' · ' + esc(vendDe(x.cc))}</div></td><td>${x.emB ? `<span class="badge crit">Parou (comprava em ${esc(perLabelCurto(S.cmp))})</span>` : x.ult ? `<span class="badge warn">Já comprou · ${mesLabel(x.ult)}</span>` : '<span class="badge gray">Nunca comprou</span>'}</td><td class="r num">${x.tot ? fmtBRL(x.tot) : '<span class="ccode">sem compra</span>'}</td></tr>`).join('')}
+          ${nao.length ? `<div class="tbl-wrap" style="max-height:480px"><table class="t"><thead><tr>${thS('N', 'nome', 'Cliente')}${thS('N', 'hist', 'Histórico ' + (porLinha ? 'da linha' : 'do produto'))}${thS('N', 'tot', 'Compra total no período (todos os produtos)', 1)}</tr></thead><tbody>
+          ${nao.map(x => `<tr class="click" data-cc="${esc(x.cc)}"><td><div class="cname">${esc(nomeDe(x.cc))}</div><div class="ccode">cód. ${esc(x.cc)}${S.vend ? '' : ' · ' + esc(vendDe(x.cc))}</div></td><td>${x.emB ? `<span class="badge crit">Parou (comprava em ${esc(perLabelCurto(S.cmp))})</span>` : x.ult ? `<span class="badge warn">Já comprou · ${mesLabel(x.ult)}</span>` : '<span class="badge gray">Nunca comprou</span>'}</td><td class="r num">${x.tot ? fmtBRL(x.tot) : '<span class="ccode">sem compra</span>'}</td></tr>`).join('')}
           </tbody></table></div>` : '<div class="empty">Todos os clientes compraram. 🎉</div>'}</div>
       </div>
     </section>
@@ -1096,7 +1143,30 @@ function renderProdutos(){
   $$('#pr-univ button').forEach(b => b.onclick = () => { S.prodUniv = b.dataset.u; renderProdutos(); });
   $$('.prod-item').forEach(b => b.onclick = () => { S.prodSel[modo] = b.dataset.k; renderProdutos(); $('#main section')?.scrollIntoView({block: 'start', behavior: 'smooth'}); });
   $$('tr.click-prod').forEach(tr => tr.onclick = () => { S.prodModo = 'produto'; S.prodSel.produto = tr.dataset.p; S.prodBusca = ''; renderProdutos(); window.scrollTo(0, 0); });
-  $$('#main tr.click').forEach(tr => tr.addEventListener('click', () => abrirCliente(tr.dataset.cc)));
+  $$('#main tr.click').forEach(tr => tr.addEventListener('click', e => { if (e.target.closest('.chk')) return; abrirCliente(tr.dataset.cc); }));
+  // ordenação das tabelas de clientes
+  $$('#main th.sort[data-g]').forEach(h => h.addEventListener('click', () => {
+    const g = h.dataset.g, kk = h.dataset.k, cur = g === 'C' ? S.prodSortC : S.prodSortN;
+    const novo = {k: kk, dir: cur.k === kk ? -cur.dir : (kk === 'nome' ? 1 : -1)};
+    if (g === 'C') S.prodSortC = novo; else S.prodSortN = novo;
+    const y = window.scrollY; renderProdutos(); window.scrollTo(0, y);
+  }));
+  // soma dos clientes marcados
+  const compMap = new Map(compradores);
+  const atualizarSoma = () => {
+    const bar = $('#pr-soma'); if (!bar) return;
+    const marc = [...S.prodMarc].filter(cc => compMap.has(cc));
+    const q = marc.reduce((s, cc) => s + compMap.get(cc).q, 0), v = marc.reduce((s, cc) => s + compMap.get(cc).val, 0);
+    bar.classList.toggle('on', marc.length > 0);
+    bar.innerHTML = marc.length
+      ? `<span><b>${marc.length}</b> cliente(s) marcado(s)</span><span>Qtde: <b class="num">${fmtQ(q)}</b></span><span>Venda: <b class="num">${fmtBRL(v)}</b></span><span class="ccode">${fmtN(totQ ? q / totQ * 100 : 0, 1)}% da quantidade total</span><button class="btn sm" id="pr-limpar">Limpar</button>`
+      : `<span class="help">Marque os clientes na primeira coluna para ir somando a quantidade e o valor. Total geral: <b class="num">${fmtQ(totQ)}</b> unidades, <b class="num">${fmtBRL(totV)}</b>.</span>`;
+    const all = $('#pr-all'); if (all) { all.checked = marc.length === compradores.length && marc.length > 0; all.indeterminate = marc.length > 0 && marc.length < compradores.length; }
+    $('#pr-limpar')?.addEventListener('click', () => { S.prodMarc.clear(); $$('[data-marc]').forEach(c => c.checked = false); atualizarSoma(); });
+  };
+  $$('[data-marc]').forEach(cb => cb.addEventListener('change', () => { if (cb.checked) S.prodMarc.add(cb.dataset.marc); else S.prodMarc.delete(cb.dataset.marc); atualizarSoma(); }));
+  $('#pr-all')?.addEventListener('change', e => { const on = e.target.checked; compradores.forEach(([cc]) => on ? S.prodMarc.add(cc) : S.prodMarc.delete(cc)); $$('[data-marc]').forEach(c => c.checked = on); atualizarSoma(); });
+  atualizarSoma();
   const inp = $('#pr-busca'); inp.addEventListener('input', () => { S.prodBusca = inp.value; const pos = inp.selectionStart; const sc = $('.prod-items')?.scrollTop; renderProdutos(); const n = $('#pr-busca'); n.focus(); n.setSelectionRange(pos, pos); });
 }
 
@@ -1165,7 +1235,8 @@ function abrirCliente(cc){
   const nome = S.cliNome[cc] || cc;
   const doMes = k => { const map = new Map(); for (const r of perMeses(k).flatMap(m => S.fatos[m])) if (r.cc === cc) { const p = map.get(r.p) || {q: 0, val: 0}; p.q += r.q; p.val += r.val; map.set(r.p, p); } return map; };
   const A = doMes(S.mes), B = S.cmp ? doMes(S.cmp) : null;
-  const prods = [...new Set([...A.keys(), ...(B ? B.keys() : [])])].map(p => ({p, a: A.get(p), b: B?.get(p)})).sort((x, y) => (y.a?.val || 0) - (x.a?.val || 0) || (y.b?.val || 0) - (x.b?.val || 0));
+  const prods = [...new Set([...A.keys(), ...(B ? B.keys() : [])])].map(p => ({p, l: linhaDe(p), a: A.get(p), b: B?.get(p)}));
+  if (S.drCli !== cc) { S.drCli = cc; S.drBusca = ''; }
   const totA = [...A.values()].reduce((s, x) => s + x.val, 0), totB = B ? [...B.values()].reduce((s, x) => s + x.val, 0) : null;
   const hist = S.meses.map(m => { let v = 0; for (const r of S.fatos[m]) if (r.cc === cc) v += r.val; return v; });
   const s = situacao(cc), st = S.status[cc] || {status: '', obs: ''};
@@ -1179,9 +1250,7 @@ function abrirCliente(cc){
         <div class="fact"><div class="lbl">Última compra</div><div class="val" style="font-size:14px">${ultimaCompraTxt(cc)}</div></div>
       </div>
       <div class="card"><h2>Produtos comprados · ${esc(perLabel(S.mes))}</h2><p class="sub">${A.size} produto(s)${B ? ' · comparado com ' + esc(perLabel(S.cmp)) : ''}</p>
-        ${prods.length ? `<div class="tbl-wrap" style="max-height:420px"><table class="t"><thead><tr><th>Produto</th><th class="r">Qtde</th><th class="r">Valor</th>${B ? `<th class="r">Qtde ${esc(perLabel(S.cmp))}</th><th class="r">Valor ${esc(perLabel(S.cmp))}</th>` : ''}</tr></thead><tbody>
-        ${prods.map(x => `<tr><td>${esc(x.p)}${B && !x.a ? ' <span class="badge warn">não comprou</span>' : ''}${B && x.a && !x.b ? ' <span class="badge ok">novo</span>' : ''}</td><td class="r num">${x.a ? fmtN(x.a.q) : '—'}</td><td class="r num">${x.a ? fmtBRL(x.a.val) : '—'}</td>${B ? `<td class="r num">${x.b ? fmtN(x.b.q) : '—'}</td><td class="r num">${x.b ? fmtBRL(x.b.val) : '—'}</td>` : ''}</tr>`).join('')}
-        </tbody></table></div>` : `<div class="empty">Este cliente não comprou em ${esc(perLabel(S.mes))}${B ? ' nem em ' + esc(perLabel(S.cmp)) : ''}.</div>`}
+        ${prods.length ? `<div class="toolbar" style="margin-bottom:8px"><input class="i" id="dr-busca" placeholder="Buscar produto ou linha (ex.: arroz)…" value="${esc(S.drBusca)}" style="max-width:300px"><span class="help">Clique no título da coluna para ordenar</span></div><div id="dr-prods"></div>` : `<div class="empty">Este cliente não comprou em ${esc(perLabel(S.mes))}${B ? ' nem em ' + esc(perLabel(S.cmp)) : ''}.</div>`}
       </div>
       <div class="card"><h2>Histórico mensal</h2><p class="sub">Venda líquida por mês (todos os vendedores)</p><div class="chart-box" style="height:200px"><canvas id="ch-cli"></canvas></div></div>
       <div class="card"><h2>Situação do cliente</h2><p class="sub">Registre por que o cliente parou de comprar. Com um motivo marcado, ele sai do alerta.</p>
@@ -1196,6 +1265,22 @@ function abrirCliente(cc){
     </div>`;
   $('#drawer').classList.remove('hidden'); $('#drawer-bg').classList.remove('hidden'); $('#drawer').scrollTop = 0;
   mkChart('ch-cli', {type: 'bar', data: {labels: S.meses.map(mesLabel), datasets: [barDs('Venda', hist, S.meses.map(m => perMeses(S.mes).includes(m) ? css('--s1') : S.cmp && perMeses(S.cmp).includes(m) ? css('--s2') : css('--s-neutral')), {maxBarThickness: 40})]}});
+  // tabela de produtos do cliente: ordenável e com busca, sem redesenhar a gaveta inteira
+  const desenharProds = () => {
+    const box = $('#dr-prods'); if (!box) return;
+    const q = S.drBusca.trim().toLowerCase();
+    let lst = q ? prods.filter(x => x.p.toLowerCase().includes(q) || x.l.toLowerCase().includes(q)) : [...prods];
+    const st = S.drSort;
+    ordenar(lst, {p: x => x.p, l: x => x.l, aq: x => x.a?.q ?? null, av: x => x.a?.val ?? null, bq: x => x.b?.q ?? null, bv: x => x.b?.val ?? null}, st);
+    const tq = lst.reduce((s2, x) => s2 + (x.a?.q || 0), 0), tv = lst.reduce((s2, x) => s2 + (x.a?.val || 0), 0);
+    const tqb = lst.reduce((s2, x) => s2 + (x.b?.q || 0), 0), tvb = lst.reduce((s2, x) => s2 + (x.b?.val || 0), 0);
+    box.innerHTML = `<div class="tbl-wrap" style="max-height:440px"><table class="t"><thead><tr>${thOrd(st, 'p', 'Produto')}${thOrd(st, 'l', 'Linha')}${thOrd(st, 'aq', 'Qtde', 'r')}${thOrd(st, 'av', 'Valor', 'r')}${B ? thOrd(st, 'bq', 'Qtde ' + esc(perLabel(S.cmp)), 'r') + thOrd(st, 'bv', 'Valor ' + esc(perLabel(S.cmp)), 'r') : ''}</tr></thead><tbody>
+      ${lst.map(x => `<tr><td>${esc(x.p)}${B && !x.a ? ' <span class="badge warn">não comprou</span>' : ''}${B && x.a && !x.b ? ' <span class="badge ok">novo</span>' : ''}</td><td class="ccode">${esc(x.l)}</td><td class="r num">${x.a ? fmtQ(x.a.q) : '—'}</td><td class="r num">${x.a ? fmtBRL(x.a.val) : '—'}</td>${B ? `<td class="r num">${x.b ? fmtQ(x.b.q) : '—'}</td><td class="r num">${x.b ? fmtBRL(x.b.val) : '—'}</td>` : ''}</tr>`).join('') || `<tr><td colspan="6" class="empty">Nenhum produto com "${esc(S.drBusca)}".</td></tr>`}
+      </tbody><tfoot><tr><td colspan="2"><b>Total${q ? ' do filtro' : ''} · ${lst.length} produto(s)</b></td><td class="r num"><b>${fmtQ(tq)}</b></td><td class="r num"><b>${fmtBRL(tv)}</b></td>${B ? `<td class="r num"><b>${fmtQ(tqb)}</b></td><td class="r num"><b>${fmtBRL(tvb)}</b></td>` : ''}</tr></tfoot></table></div>`;
+    $$('#dr-prods th.sort').forEach(h => h.onclick = () => { S.drSort = proximaOrdem(S.drSort, h.dataset.sk, ['p', 'l'].includes(h.dataset.sk)); desenharProds(); });
+  };
+  desenharProds();
+  $('#dr-busca')?.addEventListener('input', e => { S.drBusca = e.target.value; desenharProds(); });
   $('#dr-close').onclick = fecharDrawer;
   $('#st-save').onclick = async () => {
     const btn = $('#st-save'); btn.disabled = true; $('#st-msg').textContent = 'Salvando…';
