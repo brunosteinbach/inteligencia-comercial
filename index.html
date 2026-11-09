@@ -185,6 +185,7 @@ table.heat tr.empresa td{border-top:2px solid var(--border-strong);background:va
 table.t th.chk,table.t td.chk{width:34px;padding-right:0;cursor:default}
 table.t td.chk input,table.t th.chk input{width:16px;height:16px;accent-color:var(--s1);cursor:pointer}
 table.t tfoot td{position:sticky;bottom:0;background:var(--surface)}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0}
 .status-opts{display:flex;gap:8px;flex-wrap:wrap}
 .status-opts label{display:flex;align-items:center;gap:6px;border:1px solid var(--border-strong);border-radius:8px;padding:7px 10px;cursor:pointer;background:var(--surface);font-weight:600;font-size:13px}
 .status-opts input{accent-color:var(--brand)}
@@ -314,7 +315,7 @@ const isoToBRc = iso => iso ? iso.slice(8,10) + '/' + iso.slice(5,7) : '—';
 const dayNum = iso => Math.round(Date.UTC(+iso.slice(0,4), +iso.slice(5,7)-1, +iso.slice(8,10)) / 864e5);
 const diasEntre = (a, b) => dayNum(b) - dayNum(a);
 const lastDay = (y, m) => new Date(Date.UTC(y, m, 0)).getUTCDate();
-function toast(t){ const d = document.createElement('div'); d.className='toast'; d.textContent=t; document.body.appendChild(d); setTimeout(()=>d.remove(), 2600); }
+function toast(t){ const d = document.createElement('div'); d.className='toast'; d.textContent=t; d.style.bottom = (22 + 52 * document.querySelectorAll('.toast').length) + 'px'; document.body.appendChild(d); setTimeout(()=>d.remove(), 2600); }
 function deltaHTML(a, b){
   if (b == null) return '';
   if (!b) return a ? '<span class="delta up">novo</span>' : '<span class="delta flat">—</span>';
@@ -368,6 +369,27 @@ function parseRelatorio(text, fileName){
     total, qtd, linhas: R.length / 5, totalRelatorio: ultimoTotal,
     vendedores: V.length, clientes: C.length, produtos: Pr.length,
     payload: { v: V, c: C, p: Pr, r: R } };
+}
+// Relatório de Análise de Estoque: lista Grupo -> Produtos (inclusive inativos)
+function parseEstoque(text, fileName){
+  const doc = new DOMParser().parseFromString(text, 'text/html');
+  const body = (doc.body?.textContent || '').replace(/\u00a0/g, ' ');
+  const me = body.match(/Emiss[ãa]o:\s*(\d{2}\/\d{2}\/\d{4}(?: \d{2}:\d{2}(?::\d{2})?)?)/);
+  const mapa = {}, grupos = {}; let ctx = false, atual = null, conflitos = 0;
+  for (const tr of doc.querySelectorAll('tr')) {
+    const t = [...tr.children].map(td => td.textContent.replace(/\u00a0/g, ' ').trim()).filter(Boolean);
+    if (!t.length) continue;
+    if (t[0] === 'Grupo' && t[1] === 'Nome Grupo') { ctx = true; continue; }
+    if (ctx && t.length === 2 && /^\d+$/.test(t[0])) { atual = t[1].replace(/\s+/g, ' ').trim(); grupos[atual] ||= 0; ctx = false; continue; }
+    if (atual && t.length === 2 && t[0].replace(/\s+/g, ' ').trim() === atual) {
+      const k = normProd(t[1]); if (!k) continue;
+      if (mapa[k] && mapa[k] !== atual) conflitos++;
+      if (!mapa[k]) grupos[atual]++;
+      mapa[k] = atual;
+    }
+  }
+  if (!Object.keys(mapa).length) throw new Error('Não encontrei produtos e grupos neste relatório de estoque.');
+  return {estoque: true, nomeArquivo: fileName, emissao: me ? me[1] : '', mapa, grupos, produtos: Object.keys(mapa).length, conflitos};
 }
 // mês ao qual o período pertence: o mês com mais dias dentro do período
 function mesDoPeriodo(inicio, fim){
@@ -491,7 +513,7 @@ const S = {
   arquivos: [], payloads: {}, status: {},
   meses: [], mesInfo: {}, fatos: {}, // fatos[mes] = linhas efetivas do mês
   vendNome: {}, cliNome: {}, recencia: {}, dataRef: null,
-  tab: 'painel', ano: '', mesSel: '', mes: null, cmp: '', vend: '',
+  grupos: null, estoqueMeta: null, tab: 'painel', ano: '', mesSel: '', mes: null, cmp: '', vend: '',
   cliSort: {k:'val', dir:-1}, vA: '', vB: '', vendSort: {k:'total', dir:-1}, vendProdF: 'todos', vendProdQ: '', prodModo: 'produto', prodSel: {produto: '', linha: ''}, prodBusca: '', prodUniv: 'ativos', prodSortC: {k: 'val', dir: -1}, prodSortN: {k: 'hist', dir: -1}, prodMarc: new Set(), prodMarcKey: '', drSort: {k: 'av', dir: -1}, drBusca: '', drCli: '', vpSort: {k: 'tot', dir: -1}, cliBusca: '', cliFiltro: 'todos', rankN: 10
 };
 const isAdmin = () => S.perfil?.papel === 'admin';
@@ -855,9 +877,13 @@ const LINHAS = [
   ['Embalagens e descartáveis', ['DPC', 'ISOPOR', 'MP', 'PP', 'SACO', 'GO', 'FILME', 'BOBINA', 'FIBRAFORM', 'LACRE', 'CLIP', 'GUARDANAPO', 'PAPEL', 'BARAN', 'HASHI', 'LUVA', 'MOLHEIRA', 'REFIL', 'POTE', 'TAMPA', 'COPO', 'EMBALAGEM', 'BANDEJA', 'SACOLA', 'PALITO']],
   ['Utensílios', ['PANELA', 'PANO', 'FACA', 'MOEDOR', 'MAÇARICO', 'MACARICO', 'SUDARE', 'MANDOLIN', 'PEDRA', 'ROLINHO', 'BARCO', 'ESTEIRA', 'TABUA']]
 ];
+// Grupos oficiais: vêm do Relatório de Análise de Estoque carregado na aba Arquivos (S.grupos).
+// Enquanto ele não for carregado, o grupo é estimado pela primeira palavra (lista LINHAS acima).
+const normProd = x => String(x || '').replace(/\s+/g, ' ').trim().toUpperCase();
 const LINHA_DE = {}; LINHAS.forEach(([n, ws]) => ws.forEach(w => LINHA_DE[w] = n));
 const _linhaCache = new Map();
-function linhaDe(p){ let l = _linhaCache.get(p); if (!l) { l = LINHA_DE[(p.split(/[\s(]/)[0] || '').toUpperCase()] || 'Outros'; _linhaCache.set(p, l); } return l; }
+function linhaDe(p){ let l = _linhaCache.get(p); if (!l) { l = S.grupos ? (S.grupos[normProd(p)] || 'SEM GRUPO') : (LINHA_DE[(p.split(/[\s(]/)[0] || '').toUpperCase()] || 'Outros'); _linhaCache.set(p, l); } return l; }
+function definirGrupos(mapa){ S.grupos = mapa && Object.keys(mapa).length ? mapa : null; _linhaCache.clear(); }
 const ORDEM_LINHAS = [...LINHAS.map(l => l[0]), 'Outros'];
 
 function statsVendedores(rows){
@@ -904,7 +930,7 @@ function renderVendedores(){
 
   // linhas de produto presentes
   const linhasTot = new Map(); for (const v of vends) for (const [l, x] of v.linha) linhasTot.set(l, (linhasTot.get(l) || 0) + x);
-  const linhas = ORDEM_LINHAS.filter(l => (linhasTot.get(l) || 0) > 0).sort((x, y) => linhasTot.get(y) - linhasTot.get(x));
+  const linhas = [...linhasTot.keys()].filter(l => (linhasTot.get(l) || 0) > 0).sort((x, y) => linhasTot.get(y) - linhasTot.get(x));
   const pct = (v, l) => v.total ? (v.linha.get(l) || 0) / v.total * 100 : 0;
   const pctEmpresa = l => linhasTot.get(l) / totalA * 100;
   // calor: azul sequencial em 5 degraus; texto escuro nos claros e branco nos escuros
@@ -934,16 +960,16 @@ function renderVendedores(){
   <div class="card">
     <div class="card-head"><div><h2>Comparativo de vendedores · ${esc(LA)}</h2><p class="sub">Venda e mix de cada vendedor${VB ? ` · abaixo de cada número, a variação contra ${esc(LB)}` : ''}. Clique no nome para colocar na comparação lado a lado.</p></div></div>
     <div class="tbl-wrap"><table class="t" id="vend-score"><thead><tr>
-      ${th('nome', 'Vendedor')}${th('total', 'Venda líquida', 1)}<th class="r">% do total</th>${th('nCli', 'Clientes', 1)}${th('ticket', 'Ticket médio', 1)}${th('skus', 'Produtos diferentes', 1)}${th('mixCli', 'Mix por cliente', 1)}${th('linhasCli', 'Linhas por cliente', 1)}${th('qtd', 'Itens', 1)}
+      ${th('nome', 'Vendedor')}${th('total', 'Venda líquida', 1)}<th class="r">% do total</th>${th('nCli', 'Clientes', 1)}${th('ticket', 'Ticket médio', 1)}${th('skus', 'Produtos diferentes', 1)}${th('mixCli', 'Mix por cliente', 1)}${th('linhasCli', 'Grupos por cliente', 1)}${th('qtd', 'Itens', 1)}
     </tr></thead><tbody>
     ${lista.map(v => `<tr${v.vc === S.vA || v.vc === S.vB ? ' style="background:var(--surface-2)"' : ''}><td><button class="link" data-pick="${esc(v.vc)}">${esc(S.vendNome[v.vc] || v.vc)}</button>${v.vc === S.vA ? ' <span class="pill" style="background:var(--s1);color:#fff">A</span>' : v.vc === S.vB ? ' <span class="pill" style="background:var(--s2);color:#fff">B</span>' : ''}</td>
       ${cell(v, 'total', fmtBRL)}<td class="r num">${fmtN(v.total / totalA * 100, 1)}%</td>${cell(v, 'nCli', fmtN)}${cell(v, 'ticket', fmtBRL)}${cell(v, 'skus', fmtN)}${cell(v, 'mixCli', f1)}${cell(v, 'linhasCli', f1)}${cell(v, 'qtd', fmtN)}</tr>`).join('')}
     </tbody></table></div>
-    <p class="help" style="margin:10px 0 0"><b>Produtos diferentes</b>: quantos produtos (SKUs) o vendedor vendeu no período. <b>Mix por cliente</b>: média de produtos diferentes que cada cliente dele comprou. <b>Linhas por cliente</b>: média de linhas de produto (arroz, algas, molhos, embalagens…) por cliente. Quanto maior, mais completo o pedido do cliente.</p>
+    <p class="help" style="margin:10px 0 0"><b>Produtos diferentes</b>: quantos produtos (SKUs) o vendedor vendeu no período. <b>Mix por cliente</b>: média de produtos diferentes que cada cliente dele comprou. <b>Grupos por cliente</b>: média de grupos de produto (arroz, algas, molhos, embalagens…) por cliente. Quanto maior, mais completo o pedido do cliente.</p>
   </div>
 
   <div class="card" style="margin-top:14px">
-    <h2>Mix por linha de produto</h2><p class="sub">Quanto cada linha representa na venda de cada vendedor (% da venda dele) · ${esc(LA)} · quanto mais escuro, maior a participação</p>
+    <h2>Mix por grupo de produto</h2><p class="sub">Quanto cada grupo representa na venda de cada vendedor (% da venda dele) · ${esc(LA)} · quanto mais escuro, maior a participação</p>
     <div class="tbl-wrap"><table class="t heat"><thead><tr><th>Vendedor</th>${linhas.map(l => `<th class="r" style="white-space:normal;min-width:78px">${esc(l)}</th>`).join('')}</tr></thead><tbody>
       ${vends.map(v => `<tr><td><b>${esc(S.vendNome[v.vc] || v.vc)}</b></td>${linhas.map(l => { const x = pct(v, l); return `<td class="r num" style="${heat(x)}" title="${esc(S.vendNome[v.vc])} · ${esc(l)}: ${fmtBRL(v.linha.get(l) || 0)}">${x ? fmtN(x, 1) + '%' : '—'}</td>`; }).join('')}</tr>`).join('')}
       <tr class="empresa"><td><b>Empresa</b></td>${linhas.map(l => `<td class="r num"><b>${fmtN(pctEmpresa(l), 1)}%</b></td>`).join('')}</tr>
@@ -967,19 +993,19 @@ function renderVendedores(){
     <div class="card"><h2>Evolução da venda</h2><p class="sub">${S.mes === 'A' ? 'Todos os meses' : 'Meses de ' + S.ano}</p>
       <div class="legend"><span><i style="background:var(--s1)"></i>${esc(nA)}</span><span><i style="background:var(--s2)"></i>${esc(nB)}</span></div>
       <div class="chart-box"><canvas id="ch-vv-evol" role="img" aria-label="Evolução da venda dos dois vendedores"></canvas></div></div>
-    <div class="card"><h2>Mix por linha: ${esc(nA)} × ${esc(nB)}</h2><p class="sub">% da venda de cada um em cada linha de produto · ${esc(LA)}</p>
+    <div class="card"><h2>Mix por grupo: ${esc(nA)} × ${esc(nB)}</h2><p class="sub">% da venda de cada um em cada grupo de produto · ${esc(LA)}</p>
       <div class="legend"><span><i style="background:var(--s1)"></i>${esc(nA)}</span><span><i style="background:var(--s2)"></i>${esc(nB)}</span></div>
-      <div class="chart-box tall"><canvas id="ch-vv-mix" role="img" aria-label="Participação por linha de produto"></canvas></div></div>
+      <div class="chart-box tall"><canvas id="ch-vv-mix" role="img" aria-label="Participação por grupo de produto"></canvas></div></div>
   </div>
   <div class="card" style="margin-top:14px">
     <h2>Produtos: ${esc(nA)} × ${esc(nB)}</h2>
     <p class="sub">${esc(LA)} · "% clientes" = parte da carteira do vendedor que comprou o produto. Use "Só A vende" e "Só B vende" para achar oportunidades de mix.</p>
     <div class="toolbar">
-      <input class="i" id="vp-busca" placeholder="Buscar produto ou linha…" value="${esc(S.vendProdQ)}" style="max-width:280px">
+      <input class="i" id="vp-busca" placeholder="Buscar produto ou grupo…" value="${esc(S.vendProdQ)}" style="max-width:280px">
       <span class="seg" id="vp-f">${[['todos', `Todos (${prodsU.length})`], ['ambos', `Os dois vendem (${ambos.length})`], ['soA', `Só ${nA.split(' ')[0]} vende (${soA.length})`], ['soB', `Só ${nB.split(' ')[0]} vende (${soB.length})`]].map(([v, l]) => `<button data-f="${v}" aria-pressed="${S.vendProdF === v}">${esc(l)}</button>`).join('')}</span>
     </div>
     <div class="tbl-wrap" style="max-height:560px"><table class="t"><thead>
-      <tr>${thOrd(vs, 'p', 'Produto', '', 'rowspan="2"')}${thOrd(vs, 'l', 'Linha', '', 'rowspan="2"')}<th colspan="3" class="r" style="color:var(--s1)">● ${esc(nA)}</th><th colspan="3" class="r" style="color:var(--s2)">● ${esc(nB)}</th></tr>
+      <tr>${thOrd(vs, 'p', 'Produto', '', 'rowspan="2"')}${thOrd(vs, 'l', 'Grupo', '', 'rowspan="2"')}<th colspan="3" class="r" style="color:var(--s1)">● ${esc(nA)}</th><th colspan="3" class="r" style="color:var(--s2)">● ${esc(nB)}</th></tr>
       <tr>${thOrd(vs, 'aq', 'Qtde', 'r')}${thOrd(vs, 'av', 'Venda', 'r')}${thOrd(vs, 'ac', '% clientes', 'r')}${thOrd(vs, 'bq', 'Qtde', 'r')}${thOrd(vs, 'bv', 'Venda', 'r')}${thOrd(vs, 'bc', '% clientes', 'r')}</tr></thead><tbody>
       ${pv.slice(0, 300).map(x => `<tr><td>${esc(x.p)}</td><td class="ccode">${esc(x.l)}</td>
         <td class="r num">${x.a ? fmtN(x.a.q) : '—'}</td><td class="r num">${x.a ? fmtBRL(x.a.val) : '<span class="badge warn">não vende</span>'}</td><td class="r num">${x.a ? fmtN(pctCli(a, x.a), 0) + '%' : ''}</td>
@@ -1089,29 +1115,29 @@ function renderProdutos(){
   $('#main').innerHTML = `
   <div class="prod-layout">
     <aside class="card prod-list">
-      <div class="seg" id="pr-modo" style="width:100%;margin-bottom:10px"><button data-m="produto" aria-pressed="${!porLinha}" style="flex:1">Produto</button><button data-m="linha" aria-pressed="${porLinha}" style="flex:1">Linha / grupo</button></div>
-      <input class="i" id="pr-busca" placeholder="Buscar ${porLinha ? 'linha' : 'produto'}…" value="${esc(S.prodBusca)}">
-      <div class="help" style="margin:8px 2px">${listaF.length} ${porLinha ? 'linha(s)' : 'produto(s)'} vendidos em ${esc(LA)}</div>
+      <div class="seg" id="pr-modo" style="width:100%;margin-bottom:10px"><button data-m="produto" aria-pressed="${!porLinha}" style="flex:1">Produto</button><button data-m="linha" aria-pressed="${porLinha}" style="flex:1">Grupo</button></div>
+      <input class="i" id="pr-busca" placeholder="Buscar ${porLinha ? 'grupo' : 'produto'}…" value="${esc(S.prodBusca)}">
+      <div class="help" style="margin:8px 2px">${listaF.length} ${porLinha ? 'grupo(s)' : 'produto(s)'} vendidos em ${esc(LA)}</div>
       <div class="prod-items">
         ${listaF.map(it => `<button class="prod-item${it.k === sel ? ' on' : ''}" data-k="${esc(it.k)}"><span class="pi-name">${esc(it.k)}</span><span class="pi-meta"><span class="num">${fmtBRL(it.val)}</span> · ${it.cli.size} cli.</span><span class="minibar" style="width:${Math.max(2, it.val / maxV * 100)}%"></span></button>`).join('') || '<div class="empty">Nada encontrado.</div>'}
       </div>
     </aside>
     <section style="min-width:0">
-      <div class="card" style="margin-bottom:14px"><div class="ccode">${porLinha ? 'Linha de produto' : 'Produto · linha ' + esc(linhaDe(sel))}</div><h2 style="font-size:19px;margin-top:2px">${esc(sel)}</h2><p class="sub" style="margin:4px 0 0">${esc(LA)} · ${esc(vendNome)}</p></div>
+      <div class="card" style="margin-bottom:14px"><div class="ccode">${porLinha ? 'Grupo de produto' : 'Produto · grupo ' + esc(linhaDe(sel))}</div><h2 style="font-size:19px;margin-top:2px">${esc(sel)}</h2><p class="sub" style="margin:4px 0 0">${esc(LA)} · ${esc(vendNome)}</p></div>
       <div class="grid g4">
         ${kpi('Venda líquida', fmtBRL(item.val), item.val, S.cmp ? valB : null)}
         ${kpi('Clientes que compraram', `${fmtN(nComp)} <span class="ccode" style="font-size:14px">de ${fmtN(universo.size)}</span>`, nComp, S.cmp ? compB.size : null)}
         ${kpi('Cobertura da carteira', fmtN(cobertura, 1) + '%', cobertura, cobB, S.prodUniv === 'carteira' ? 'sobre toda a carteira' : 'sobre os clientes que compraram no período')}
-        ${porLinha ? kpi('Produtos da linha vendidos', fmtN(item.prods.size), 0, null) : kpi('Preço médio (venda ÷ qtde)', fmtBRL(precoA), precoA, precoB, fmtN(item.q) + ' unidades')}
+        ${porLinha ? kpi('Produtos do grupo vendidos', fmtN(item.prods.size), 0, null) : kpi('Preço médio (venda ÷ qtde)', fmtBRL(precoA), precoA, precoB, fmtN(item.q) + ' unidades')}
       </div>
       <div class="grid g2" style="margin-top:14px">
         <div class="card"><h2>Venda mês a mês</h2><p class="sub">${S.mes === 'A' ? 'Todos os meses' : 'Meses de ' + S.ano} · ${esc(vendNome)}</p><div class="chart-box" style="height:230px"><canvas id="ch-pr-evol" role="img" aria-label="Venda mensal do item"></canvas></div></div>
-        <div class="card"><h2>Cobertura por vendedor</h2><p class="sub">% dos clientes ativos de cada vendedor que compraram ${porLinha ? 'algo da linha' : 'o produto'} · ${esc(LA)}</p>
+        <div class="card"><h2>Cobertura por vendedor</h2><p class="sub">% dos clientes ativos de cada vendedor que compraram ${porLinha ? 'algo do grupo' : 'o produto'} · ${esc(LA)}</p>
           <table class="t"><thead><tr><th>Vendedor</th><th class="r">Compraram</th><th class="r">Venda</th><th style="width:34%">Cobertura</th></tr></thead><tbody>
           ${covRows.map(v => `<tr${S.vend === v.vc ? ' style="background:var(--surface-2)"' : ''}><td>${esc(S.vendNome[v.vc] || v.vc)}</td><td class="r num">${v.nc} de ${v.na}</td><td class="r num">${fmtBRL(v.val)}</td><td><div style="display:flex;align-items:center;gap:8px"><div style="flex:1;background:var(--surface-2);border-radius:3px;height:8px"><div class="minibar" style="margin:0;height:8px;width:${Math.max(v.pct ? 2 : 0, v.pct)}%"></div></div><span class="num" style="min-width:44px;text-align:right">${fmtN(v.pct, 0)}%</span></div></td></tr>`).join('')}
           </tbody></table></div>
       </div>
-      ${porLinha ? `<div class="card" style="margin-top:14px"><h2>Produtos da linha</h2><p class="sub">Clique para abrir o produto</p><div class="tbl-wrap" style="max-height:300px"><table class="t"><thead><tr><th>Produto</th><th class="r">Qtde</th><th class="r">Venda</th><th class="r">Clientes</th></tr></thead><tbody>
+      ${porLinha ? `<div class="card" style="margin-top:14px"><h2>Produtos do grupo</h2><p class="sub">Clique para abrir o produto</p><div class="tbl-wrap" style="max-height:300px"><table class="t"><thead><tr><th>Produto</th><th class="r">Qtde</th><th class="r">Venda</th><th class="r">Clientes</th></tr></thead><tbody>
         ${prodsLinha.map(([p, x]) => `<tr class="click-prod" data-p="${esc(p)}" style="cursor:pointer"><td><button class="link">${esc(p)}</button></td><td class="r num">${fmtN(x.q)}</td><td class="r num">${fmtBRL(x.val)}</td><td class="r num">${x.cli.size}</td></tr>`).join('')}
       </tbody></table></div></div>` : ''}
       <div class="toolbar" style="margin:18px 0 0">
@@ -1126,7 +1152,7 @@ function renderProdutos(){
           ${compradores.map(([cc, c]) => `<tr class="click" data-cc="${esc(cc)}"><td class="chk"><input type="checkbox" data-marc="${esc(cc)}" ${S.prodMarc.has(cc) ? 'checked' : ''} aria-label="Somar ${esc(nomeDe(cc))}"></td><td><div class="cname">${esc(nomeDe(cc))}</div><div class="ccode">cód. ${esc(cc)}${S.vend ? '' : ' · ' + esc(vendDe(cc))}</div></td>${porLinha ? `<td class="r num">${c.prods.size}</td>` : ''}<td class="r num">${fmtQ(c.q)}</td><td class="r num">${fmtBRL(c.val)}</td>${S.cmp ? `<td class="r">${compB.get(cc) ? deltaHTML(c.val, compB.get(cc)) : '<span class="badge ok">novo</span>'}</td>` : ''}</tr>`).join('')}
           </tbody><tfoot><tr><td></td><td><b>Total · ${fmtN(nComp)} cliente(s)</b></td>${porLinha ? `<td class="r num"><b>${fmtN(item.prods.size)}</b></td>` : ''}<td class="r num"><b>${fmtQ(totQ)}</b></td><td class="r num"><b>${fmtBRL(totV)}</b></td>${S.cmp ? `<td class="r">${deltaHTML(totV, totCmp)}</td>` : ''}</tr></tfoot></table></div>` : '<div class="empty">Ninguém comprou neste período.</div>'}</div>
         <div class="card"><h2 style="color:var(--crit)">✕ Não compraram · ${fmtN(nao.length)}</h2><p class="sub">${S.cmp && perdidos ? `<b>${perdidos}</b> compravam em ${esc(LB)} e pararam · ` : ''}oportunidades de venda, com quem já comprou antes no topo</p>
-          ${nao.length ? `<div class="tbl-wrap" style="max-height:480px"><table class="t"><thead><tr>${thS('N', 'nome', 'Cliente')}${thS('N', 'hist', 'Histórico ' + (porLinha ? 'da linha' : 'do produto'))}${thS('N', 'tot', 'Compra total no período (todos os produtos)', 1)}</tr></thead><tbody>
+          ${nao.length ? `<div class="tbl-wrap" style="max-height:480px"><table class="t"><thead><tr>${thS('N', 'nome', 'Cliente')}${thS('N', 'hist', 'Histórico ' + (porLinha ? 'do grupo' : 'do produto'))}${thS('N', 'tot', 'Compra total no período (todos os produtos)', 1)}</tr></thead><tbody>
           ${nao.map(x => `<tr class="click" data-cc="${esc(x.cc)}"><td><div class="cname">${esc(nomeDe(x.cc))}</div><div class="ccode">cód. ${esc(x.cc)}${S.vend ? '' : ' · ' + esc(vendDe(x.cc))}</div></td><td>${x.emB ? `<span class="badge crit">Parou (comprava em ${esc(perLabelCurto(S.cmp))})</span>` : x.ult ? `<span class="badge warn">Já comprou · ${mesLabel(x.ult)}</span>` : '<span class="badge gray">Nunca comprou</span>'}</td><td class="r num">${x.tot ? fmtBRL(x.tot) : '<span class="ccode">sem compra</span>'}</td></tr>`).join('')}
           </tbody></table></div>` : '<div class="empty">Todos os clientes compraram. 🎉</div>'}</div>
       </div>
@@ -1250,7 +1276,7 @@ function abrirCliente(cc){
         <div class="fact"><div class="lbl">Última compra</div><div class="val" style="font-size:14px">${ultimaCompraTxt(cc)}</div></div>
       </div>
       <div class="card"><h2>Produtos comprados · ${esc(perLabel(S.mes))}</h2><p class="sub">${A.size} produto(s)${B ? ' · comparado com ' + esc(perLabel(S.cmp)) : ''}</p>
-        ${prods.length ? `<div class="toolbar" style="margin-bottom:8px"><input class="i" id="dr-busca" placeholder="Buscar produto ou linha (ex.: arroz)…" value="${esc(S.drBusca)}" style="max-width:300px"><span class="help">Clique no título da coluna para ordenar</span></div><div id="dr-prods"></div>` : `<div class="empty">Este cliente não comprou em ${esc(perLabel(S.mes))}${B ? ' nem em ' + esc(perLabel(S.cmp)) : ''}.</div>`}
+        ${prods.length ? `<div class="toolbar" style="margin-bottom:8px"><input class="i" id="dr-busca" placeholder="Buscar produto ou grupo (ex.: arroz)…" value="${esc(S.drBusca)}" style="max-width:300px"><span class="help">Clique no título da coluna para ordenar</span></div><div id="dr-prods"></div>` : `<div class="empty">Este cliente não comprou em ${esc(perLabel(S.mes))}${B ? ' nem em ' + esc(perLabel(S.cmp)) : ''}.</div>`}
       </div>
       <div class="card"><h2>Histórico mensal</h2><p class="sub">Venda líquida por mês (todos os vendedores)</p><div class="chart-box" style="height:200px"><canvas id="ch-cli"></canvas></div></div>
       <div class="card"><h2>Situação do cliente</h2><p class="sub">Registre por que o cliente parou de comprar. Com um motivo marcado, ele sai do alerta.</p>
@@ -1274,7 +1300,7 @@ function abrirCliente(cc){
     ordenar(lst, {p: x => x.p, l: x => x.l, aq: x => x.a?.q ?? null, av: x => x.a?.val ?? null, bq: x => x.b?.q ?? null, bv: x => x.b?.val ?? null}, st);
     const tq = lst.reduce((s2, x) => s2 + (x.a?.q || 0), 0), tv = lst.reduce((s2, x) => s2 + (x.a?.val || 0), 0);
     const tqb = lst.reduce((s2, x) => s2 + (x.b?.q || 0), 0), tvb = lst.reduce((s2, x) => s2 + (x.b?.val || 0), 0);
-    box.innerHTML = `<div class="tbl-wrap" style="max-height:440px"><table class="t"><thead><tr>${thOrd(st, 'p', 'Produto')}${thOrd(st, 'l', 'Linha')}${thOrd(st, 'aq', 'Qtde', 'r')}${thOrd(st, 'av', 'Valor', 'r')}${B ? thOrd(st, 'bq', 'Qtde ' + esc(perLabel(S.cmp)), 'r') + thOrd(st, 'bv', 'Valor ' + esc(perLabel(S.cmp)), 'r') : ''}</tr></thead><tbody>
+    box.innerHTML = `<div class="tbl-wrap" style="max-height:440px"><table class="t"><thead><tr>${thOrd(st, 'p', 'Produto')}${thOrd(st, 'l', 'Grupo')}${thOrd(st, 'aq', 'Qtde', 'r')}${thOrd(st, 'av', 'Valor', 'r')}${B ? thOrd(st, 'bq', 'Qtde ' + esc(perLabel(S.cmp)), 'r') + thOrd(st, 'bv', 'Valor ' + esc(perLabel(S.cmp)), 'r') : ''}</tr></thead><tbody>
       ${lst.map(x => `<tr><td>${esc(x.p)}${B && !x.a ? ' <span class="badge warn">não comprou</span>' : ''}${B && x.a && !x.b ? ' <span class="badge ok">novo</span>' : ''}</td><td class="ccode">${esc(x.l)}</td><td class="r num">${x.a ? fmtQ(x.a.q) : '—'}</td><td class="r num">${x.a ? fmtBRL(x.a.val) : '—'}</td>${B ? `<td class="r num">${x.b ? fmtQ(x.b.q) : '—'}</td><td class="r num">${x.b ? fmtBRL(x.b.val) : '—'}</td>` : ''}</tr>`).join('') || `<tr><td colspan="6" class="empty">Nenhum produto com "${esc(S.drBusca)}".</td></tr>`}
       </tbody><tfoot><tr><td colspan="2"><b>Total${q ? ' do filtro' : ''} · ${lst.length} produto(s)</b></td><td class="r num"><b>${fmtQ(tq)}</b></td><td class="r num"><b>${fmtBRL(tv)}</b></td>${B ? `<td class="r num"><b>${fmtQ(tqb)}</b></td><td class="r num"><b>${fmtBRL(tvb)}</b></td>` : ''}</tr></tfoot></table></div>`;
     $$('#dr-prods th.sort').forEach(h => h.onclick = () => { S.drSort = proximaOrdem(S.drSort, h.dataset.sk, ['p', 'l'].includes(h.dataset.sk)); desenharProds(); });
@@ -1305,11 +1331,21 @@ function renderArquivos(){
   const usado = a => S.mesInfo[a.mes]?.usados.some(u => u.id === a.id);
   $('#main').innerHTML = `
     <div class="card">
-      <h2>Carregar relatório de vendas</h2>
-      <p class="sub">Use o <b>Relatório de Análise de Vendas - Vendedor - Cliente (Detalhado) - Produto</b> exportado em <b>HTML</b>. O sistema identifica o período. Se for de 1º ao último dia do mês, é tratado como <b>mensal</b>; se não, como <b>semanal</b>. O mensal substitui as semanas daquele mês no total. Carregar de novo o mesmo período substitui o anterior.</p>
+      <h2>Carregar relatórios</h2>
+      <p class="sub"><b>Vendas:</b> use o <b>Relatório de Análise de Vendas - Vendedor - Cliente (Detalhado) - Produto</b> exportado em <b>HTML</b>. O sistema identifica o período. Se for de 1º ao último dia do mês, é tratado como <b>mensal</b>; se não, como <b>semanal</b>. O mensal substitui as semanas daquele mês no total. Carregar de novo o mesmo período substitui o anterior.<br><b>Grupos de produtos:</b> use o <b>Relatório de Análise de Estoque</b> em HTML. Ele define o grupo de cada produto, igual ao seu sistema. Carregue de novo sempre que cadastrar produtos ou mudar grupos.</p>
       <label class="drop" id="drop"><input type="file" id="file" accept=".html,.htm" multiple hidden><strong>Arraste os arquivos aqui ou clique para escolher</strong><span>Pode carregar vários de uma vez (.html)</span></label>
       <div id="pend"></div>
     </div>
+    ${(() => {
+      const vend = new Set(); for (const rows of Object.values(S.payloads)) for (const r of rows) vend.add(r.p);
+      const sem = S.grupos ? [...vend].filter(x => !S.grupos[normProd(x)]) : [];
+      const gs = {}; if (S.grupos) for (const g of Object.values(S.grupos)) gs[g] = (gs[g] || 0) + 1;
+      return `<div class="card" style="margin-top:14px"><h2>Grupos de produtos</h2>
+      ${S.estoqueMeta ? `<p class="sub">Relatório de estoque carregado em ${S.estoqueMeta.enviadoEm ? new Date(S.estoqueMeta.enviadoEm).toLocaleString('pt-BR') : '—'}${S.estoqueMeta.enviadoPor ? ' por ' + esc(S.estoqueMeta.enviadoPor) : ''} · ${fmtN(Object.keys(S.grupos || {}).length)} produtos em ${Object.keys(gs).length} grupos</p>
+        <div class="chips">${Object.entries(gs).sort((a, b) => a[0].localeCompare(b[0], 'pt-BR')).map(([g, n]) => `<span class="badge gray">${esc(g)} · ${n}</span>`).join('')}</div>
+        ${sem.length ? `<div class="msg info">${sem.length} produto(s) vendido(s) estão sem grupo (aparecem como "SEM GRUPO"). Carregue o relatório de estoque atualizado: ${esc(sem.slice(0, 10).join(', '))}${sem.length > 10 ? '…' : ''}</div>` : (vend.size ? '<div class="msg ok">✓ Todos os produtos vendidos têm grupo.</div>' : '')}`
+      : `<div class="msg info">O relatório de estoque ainda não foi carregado, então os grupos estão sendo <b>estimados pelo nome do produto</b>. Carregue o <b>Relatório de Análise de Estoque</b> no quadro acima para usar os grupos do seu sistema.</div>`}</div>`;
+    })()}
     <div class="card" style="margin-top:14px"><h2>Arquivos carregados · ${lst.length}</h2><p class="sub">"Substituído" = semana que já está coberta pelo fechamento mensal (continua servindo para a data da última compra).</p>
       ${lst.length ? `<div class="tbl-wrap"><table class="t"><thead><tr><th>Tipo</th><th>Período</th><th>Mês</th><th class="r">Venda líquida</th><th class="r">Linhas</th><th>Enviado</th><th>Uso</th><th></th></tr></thead><tbody>
       ${lst.map(a => `<tr><td><span class="badge ${a.tipo === 'mensal' ? 'outro' : 'gray'}">${a.tipo === 'mensal' ? 'Mensal' : 'Semanal'}</span></td><td class="num">${isoToBR(a.inicio)} a ${isoToBR(a.fim)}</td><td>${mesLabel(a.mes)}</td><td class="r num">${fmtBRL(a.total)}</td><td class="r num">${fmtN(a.linhas)}</td><td class="ccode">${esc(a.enviadoPor || '')}<br>${a.enviadoEm ? new Date(a.enviadoEm).toLocaleString('pt-BR') : ''}</td><td>${usado(a) ? '<span class="badge ok">Em uso</span>' : '<span class="badge gray">Substituído</span>'}</td><td class="r"><button class="btn sm danger" data-del="${esc(a.id)}">Excluir</button></td></tr>`).join('')}
@@ -1335,7 +1371,8 @@ async function lerArquivos(files){
       const buf = await f.arrayBuffer();
       let txt = new TextDecoder('utf-8').decode(buf);
       if (txt.includes('\uFFFD')) txt = new TextDecoder('windows-1252').decode(buf);
-      pendentes.push({ok: true, ...parseRelatorio(txt, f.name)});
+      const ehEstoque = /An[áa]lise de Estoque/i.test(txt.slice(0, 20000));
+      pendentes.push({ok: true, ...(ehEstoque ? parseEstoque(txt, f.name) : parseRelatorio(txt, f.name))});
     } catch (e) { pendentes.push({ok: false, nomeArquivo: f.name, erro: e.message}); }
   }
   renderPendentes();
@@ -1344,6 +1381,17 @@ function renderPendentes(){
   const el = $('#pend'); if (!el) return;
   el.innerHTML = pendentes.map((p, i) => {
     if (!p.ok) return `<div class="preview"><h4>${esc(p.nomeArquivo)}</h4><div class="msg err">${esc(p.erro)}</div><div class="row-actions"><button class="btn sm" data-rm="${i}">Remover</button></div></div>`;
+    if (p.estoque) {
+      const vendidos = new Set(); for (const rows of Object.values(S.payloads)) for (const r of rows) vendidos.add(normProd(r.p));
+      const semGrupo = [...vendidos].filter(x => !p.mapa[x]);
+      const gs = Object.entries(p.grupos).sort((a, b) => a[0].localeCompare(b[0], 'pt-BR'));
+      return `<div class="preview"><h4>${esc(p.nomeArquivo)}</h4>
+        <div class="kv"><div><b>Tipo</b>Estoque (grupos de produtos)</div><div><b>Emissão</b>${esc(p.emissao || '—')}</div><div><b>Produtos</b>${fmtN(p.produtos)}</div><div><b>Grupos</b>${gs.length}</div></div>
+        <div class="chips">${gs.map(([g, n]) => `<span class="badge gray">${esc(g)} · ${n}</span>`).join('')}</div>
+        ${vendidos.size ? (semGrupo.length ? `<div class="msg info">${semGrupo.length} produto(s) já vendido(s) não estão neste relatório e vão aparecer como "SEM GRUPO": ${esc(semGrupo.slice(0, 8).join(', '))}${semGrupo.length > 8 ? '…' : ''}</div>` : `<div class="msg ok">✓ Todos os ${vendidos.size} produtos das vendas carregadas têm grupo neste relatório.</div>`) : ''}
+        ${S.estoqueMeta ? `<div class="msg info">Ao salvar, os grupos atuais (carregados em ${S.estoqueMeta.enviadoEm ? new Date(S.estoqueMeta.enviadoEm).toLocaleDateString('pt-BR') : '—'}) serão <b>substituídos</b> por estes.</div>` : ''}
+        <div class="row-actions"><button class="btn primary" data-save="${i}">Salvar grupos</button><button class="btn" data-rm="${i}">Cancelar</button><span class="help" id="sv-${i}"></span></div></div>`;
+    }
     p.mes = p.tipo === 'mensal' ? p.inicio.slice(0,7) : mesDoPeriodo(p.inicio, p.fim);
     const id = idArquivo(p), existe = S.arquivos.find(a => a.id === id);
     const confere = p.totalRelatorio == null ? null : Math.abs(p.totalRelatorio - p.total) < 1;
@@ -1377,6 +1425,12 @@ async function salvarPendentes(idxs){
   const feitos = [];
   for (const i of idxs) {
     const p = pendentes[i]; const msg = $('#sv-' + i); if (msg) msg.textContent = 'Salvando…';
+    if (p.estoque) {
+      const meta = {tipo: 'estoque', nomeArquivo: p.nomeArquivo, emissao: p.emissao, produtos: p.produtos, grupos: Object.keys(p.grupos).length, enviadoPor: S.email, enviadoEm: new Date().toISOString()};
+      try { await S.store.saveArquivo('ESTOQUE', meta, {m: p.mapa}); S.estoqueMeta = {id: 'ESTOQUE', ...meta}; definirGrupos(p.mapa); feitos.push(i); toast('Grupos de produtos atualizados'); }
+      catch (e) { if (msg) msg.textContent = erroFirebase(e); }
+      continue;
+    }
     const id = idArquivo(p);
     const meta = {tipo: p.tipo, inicio: p.inicio, fim: p.fim, mes: p.mes, nomeArquivo: p.nomeArquivo, emissao: p.emissao, total: p.total, qtd: p.qtd, linhas: p.linhas, clientes: p.clientes, enviadoPor: S.email, enviadoEm: new Date().toISOString()};
     try {
@@ -1386,8 +1440,9 @@ async function salvarPendentes(idxs){
       feitos.push(i);
     } catch (e) { if (msg) msg.textContent = erroFirebase(e); }
   }
+  const vendas = feitos.filter(i => !pendentes[i]?.estoque).length;
   pendentes = pendentes.filter((_, i) => !feitos.includes(i));
-  recalcular(); if (feitos.length) { ajustarMes(true); toast(feitos.length + ' arquivo(s) salvo(s)'); }
+  recalcular(); if (vendas) { ajustarMes(true); toast(vendas + ' arquivo(s) salvo(s)'); }
   render();
 }
 
@@ -1437,8 +1492,10 @@ function ajustarMes(force){
 async function carregarDados(){
   $('#main').innerHTML = '<div class="loading">Carregando dados de vendas…</div>';
   const [arqs, status] = await Promise.all([S.store.listArquivos(), S.store.listStatus()]);
-  S.arquivos = arqs; S.status = status;
-  await Promise.all(arqs.map(async a => { if (!S.payloads[a.id]) S.payloads[a.id] = decode(await S.store.getPayload(a.id)); }));
+  S.estoqueMeta = arqs.find(a => a.tipo === 'estoque') || null;
+  S.arquivos = arqs.filter(a => a.tipo !== 'estoque'); S.status = status;
+  const pEst = S.estoqueMeta ? S.store.getPayload(S.estoqueMeta.id).then(pl => definirGrupos(pl.m)).catch(() => definirGrupos(null)) : (definirGrupos(null), null);
+  await Promise.all([pEst, ...S.arquivos.map(async a => { if (!S.payloads[a.id]) S.payloads[a.id] = decode(await S.store.getPayload(a.id)); })]);
   recalcular(); ajustarMes(true);
 }
 function mostrarLogin(msg){
