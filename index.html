@@ -185,6 +185,11 @@ table.heat tr.empresa td{border-top:2px solid var(--border-strong);background:va
 table.t th.chk,table.t td.chk{width:34px;padding-right:0;cursor:default}
 table.t td.chk input,table.t th.chk input{width:16px;height:16px;accent-color:var(--s1);cursor:pointer}
 table.t tfoot td{position:sticky;bottom:0;background:var(--surface)}
+.prog{position:relative;height:12px;border-radius:6px;background:var(--surface-2);border:1px solid var(--border);margin-top:14px;overflow:visible}
+.prog-real{height:100%;border-radius:6px;background:var(--s1)}
+.prog-mark{position:absolute;top:-4px;bottom:-4px;width:2px;background:var(--text);border-radius:1px}
+.h3{font-size:13.5px;margin:4px 0 6px}
+.proj .fact .val{font-size:19px}
 .chips{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0}
 .status-opts{display:flex;gap:8px;flex-wrap:wrap}
 .status-opts label{display:flex;align-items:center;gap:6px;border:1px solid var(--border-strong);border-radius:8px;padding:7px 10px;cursor:pointer;background:var(--surface);font-weight:600;font-size:13px}
@@ -513,7 +518,7 @@ const S = {
   arquivos: [], payloads: {}, status: {},
   meses: [], mesInfo: {}, fatos: {}, // fatos[mes] = linhas efetivas do mês
   vendNome: {}, cliNome: {}, recencia: {}, dataRef: null,
-  grupos: null, estoqueMeta: null, tab: 'painel', ano: '', mesSel: '', mes: null, cmp: '', vend: '',
+  grupos: null, estoqueMeta: null, cal: {folgas: {}, trabalhados: {}}, calMeta: null, calAno: new Date().getFullYear(), calSujo: false, tab: 'painel', ano: '', mesSel: '', mes: null, cmp: '', vend: '',
   cliSort: {k:'val', dir:-1}, vA: '', vB: '', vendSort: {k:'total', dir:-1}, vendProdF: 'todos', vendProdQ: '', prodModo: 'produto', prodSel: {produto: '', linha: ''}, prodBusca: '', prodUniv: 'ativos', prodSortC: {k: 'val', dir: -1}, prodSortN: {k: 'hist', dir: -1}, prodMarc: new Set(), prodMarcKey: '', drSort: {k: 'av', dir: -1}, drBusca: '', drCli: '', vpSort: {k: 'tot', dir: -1}, cliBusca: '', cliFiltro: 'todos', rankN: 10
 };
 const isAdmin = () => S.perfil?.papel === 'admin';
@@ -550,7 +555,9 @@ function recalcular(){
   for (const m of S.meses) {
     const lst = porMes[m];
     const mensal = lst.find(a => a.tipo === 'mensal');
-    const semanais = lst.filter(a => a.tipo === 'semanal').sort((a,b) => a.inicio < b.inicio ? -1 : 1);
+    const todasSem = lst.filter(a => a.tipo === 'semanal').sort((a,b) => a.inicio < b.inicio ? -1 : 1);
+    // um arquivo parcial contido em outro maior (ex.: 01/11–06/11 dentro de 01/11–13/11) não entra no total
+    const semanais = todasSem.filter(a => !todasSem.some(b => b !== a && b.inicio <= a.inicio && b.fim >= a.fim));
     const usados = mensal ? [mensal] : semanais;
     S.mesInfo[m] = { mensal: !!mensal, semanais, usados, ate: usados.reduce((x, a) => a.fim > x ? a.fim : x, ''), inicio: usados.reduce((x, a) => !x || a.inicio < x ? a.inicio : x, '') };
     S.mesInfo[m].parcial = !mensal;
@@ -736,6 +743,16 @@ function renderPainel(){
   const prods = [...A.prod.entries()].sort((a,b) => b[1].val - a[1].val).slice(0, 10);
   const maxProd = prods[0]?.[1].val || 1;
   const hA = esc(perLabelCurto(S.mes)), hB = S.cmp ? esc(perLabelCurto(S.cmp)) : '';
+  // mês em andamento: projeção e comparação parcial (mesmo período do mês de comparação)
+  const mAtual = isMes(S.mes) ? S.mes.slice(2) : '';
+  const proj = mAtual ? projecaoHTML(mAtual) : {html: ''};
+  const cmpParcial = mAtual && inf?.parcial && S.cmp && isMes(S.cmp) ? comparacaoParcialHTML(mAtual, S.cmp.slice(2)) : '';
+  let kpiVendaSub = null;
+  if (cmpParcial) {
+    const dia = +inf.ate.slice(8), mb = S.cmp.slice(2), limB = `${mb}-${String(Math.min(dia, lastDay(+mb.slice(0, 4), +mb.slice(5, 7)))).padStart(2, '0')}`;
+    const vb = valorAte(mb, limB);
+    if (vb) { const tb = S.vend ? (vb.t.get(S.vend) || 0) : vb.tot; kpiVendaSub = `vs ${esc(mesLabel(mb))} até ${isoToBRc(limB)}${vb.real ? '' : ' (estimado)'}: ${deltaHTML(A.total, tb)}`; }
+  }
 
   const rankTable = (lst, titulo, sub, id) => `<div class="card"><h2>${titulo}</h2><p class="sub">${sub}</p>
     ${lst.length ? `<table class="t" id="${id}"><thead><tr><th></th><th>Cliente</th><th class="r">${hA}</th>${B ? `<th class="r">${hB}</th><th class="r">Var.</th>` : ''}<th>Situação</th></tr></thead><tbody>
@@ -779,12 +796,14 @@ function renderPainel(){
 
   $('#main').innerHTML = `
   <div class="grid ${multi ? 'g5' : 'g4'}">
-    ${kpi('Venda líquida · ' + esc(LA), fmtBRL(A.total), A.total, B?.total)}
+    ${kpiVendaSub ? `<div class="card kpi"><div class="lbl">Venda líquida · ${esc(LA)}</div><div class="val num">${fmtBRL(A.total)}</div><div class="cmp">${kpiVendaSub}</div></div>` : kpi('Venda líquida · ' + esc(LA), fmtBRL(A.total), A.total, B?.total)}
     ${multi ? kpi('Média por mês', fmtBRL(mediaA), mediaA, mediaB, `${mesesA.length} ${mesesA.length === 1 ? 'mês' : 'meses'}`) : ''}
     ${kpi('Clientes que compraram', fmtN(A.nCli), A.nCli, B?.nCli)}
     ${kpi('Ticket médio por cliente', fmtBRL(ticketA), ticketA, ticketB)}
     ${kpi('Itens vendidos (qtde)', fmtN(A.qtd), A.qtd, B?.qtd)}
   </div>
+  ${proj.html}
+  ${cmpParcial}
   <div class="grid g32" style="margin-top:14px">
     <div class="card">
       <div class="card-head"><div><h2>${evolTitulo}</h2><p class="sub">${evolSub}</p></div></div>
@@ -860,6 +879,169 @@ function renderPainel(){
   $$('#main tr.click-per').forEach(tr => tr.addEventListener('click', () => { const k = tr.dataset.k; if (S.mes === 'A') { S.ano = k; S.mesSel = ''; } else S.mesSel = k; definirPeriodo(); render(); window.scrollTo(0, 0); }));
   $$('#main [data-vend]').forEach(b => b.addEventListener('click', () => { S.vend = S.vend === b.dataset.vend ? '' : b.dataset.vend; render(); }));
   $$('#rank-n button').forEach(b => b.addEventListener('click', () => { S.rankN = +b.dataset.n; render(); }));
+}
+
+/* ---------------- CALENDÁRIO DE DIAS ÚTEIS (segunda a sexta, sem feriados nacionais) ---------------- */
+const FERIADOS_FIXOS = [['01-01', 'Confraternização Universal'], ['04-21', 'Tiradentes'], ['05-01', 'Dia do Trabalho'], ['09-07', 'Independência do Brasil'], ['10-12', 'Nossa Senhora Aparecida'], ['11-02', 'Finados'], ['11-15', 'Proclamação da República'], ['11-20', 'Dia Nacional de Zumbi e da Consciência Negra'], ['12-25', 'Natal']];
+const DIAS_SEM = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
+const isoDeNum = n => new Date(n * 864e5).toISOString().slice(0, 10);
+const diaSemana = iso => new Date(dayNum(iso) * 864e5).getUTCDay();
+function pascoa(y){ // algoritmo de Meeus/Jones/Butcher
+  const a = y % 19, b = Math.floor(y / 100), c = y % 100, d = Math.floor(b / 4), e = b % 4, f = Math.floor((b + 8) / 25), g = Math.floor((b - f + 1) / 3);
+  const h = (19 * a + b - d - g + 15) % 30, i = Math.floor(c / 4), k = c % 4, l = (32 + 2 * e + 2 * i - h - k) % 7, m = Math.floor((a + 11 * h + 22 * l) / 451);
+  const mes = Math.floor((h + l - 7 * m + 114) / 31), dia = ((h + l - 7 * m + 114) % 31) + 1;
+  return dayNum(`${y}-${String(mes).padStart(2, '0')}-${String(dia).padStart(2, '0')}`);
+}
+const _ferCache = {};
+function feriadosNacionais(y){
+  if (_ferCache[y]) return _ferCache[y];
+  const o = {}; for (const [md, n] of FERIADOS_FIXOS) o[`${y}-${md}`] = n;
+  o[isoDeNum(pascoa(y) - 2)] = 'Sexta-feira Santa';
+  return (_ferCache[y] = o);
+}
+// pontos facultativos: só viram folga se o administrador marcar
+function facultativos(y){ const p = pascoa(y); return [[isoDeNum(p - 48), 'Carnaval (segunda)'], [isoDeNum(p - 47), 'Carnaval (terça)'], [isoDeNum(p - 46), 'Quarta-feira de Cinzas'], [isoDeNum(p + 60), 'Corpus Christi']]; }
+function motivoNaoUtil(iso){
+  const ds = diaSemana(iso);
+  if (ds === 0 || ds === 6) return 'fim de semana';
+  if (S.cal.trabalhados[iso]) return '';
+  const fer = feriadosNacionais(+iso.slice(0, 4))[iso]; if (fer) return fer;
+  if (S.cal.folgas[iso]) return S.cal.folgas[iso];
+  return '';
+}
+const diaUtil = iso => !motivoNaoUtil(iso);
+function diasUteis(a, b){ if (!a || !b || a > b) return 0; let n = 0; for (let d = dayNum(a), f = dayNum(b); d <= f; d++) if (diaUtil(isoDeNum(d))) n++; return n; }
+const inicioMes = m => m + '-01', fimMes = m => `${m}-${String(lastDay(+m.slice(0, 4), +m.slice(5, 7))).padStart(2, '0')}`;
+function folgasDoMes(m){ const o = []; for (let d = dayNum(inicioMes(m)), f = dayNum(fimMes(m)); d <= f; d++) { const iso = isoDeNum(d), mt = motivoNaoUtil(iso); if (mt && mt !== 'fim de semana') o.push([iso, mt]); } return o; }
+
+/* ---------------- PROJEÇÃO E COMPARAÇÃO PARCIAL ---------------- */
+const somaPorVend = rows => { const t = new Map(); let tot = 0; for (const r of rows) { t.set(r.vc, (t.get(r.vc) || 0) + r.val); tot += r.val; } return {t, tot}; };
+// Arquivos de um mês que cobrem, em sequência, do dia 1 até a data limite (valor real até essa data)
+function cadeiaAte(m, limite){
+  const cands = S.arquivos.filter(a => S.payloads[a.id] && a.inicio >= inicioMes(m) && a.fim <= limite);
+  const cadeia = []; let cur = inicioMes(m);
+  while (cur <= limite) {
+    const prox = cands.filter(a => a.inicio === cur).sort((x, y) => x.fim < y.fim ? 1 : -1)[0];
+    if (!prox) return null;
+    cadeia.push(prox); cur = isoDeNum(dayNum(prox.fim) + 1);
+  }
+  return cadeia;
+}
+// Valor de um mês até uma data: real (arquivos que cobrem 01..data) ou estimado pela média por dia útil
+function valorAte(m, limite){
+  const cad = cadeiaAte(m, limite);
+  const duAte = diasUteis(inicioMes(m), limite);
+  if (cad) { const s = somaPorVend(cad.flatMap(a => S.payloads[a.id])); return {real: true, ...s, du: duAte}; }
+  const inf = S.mesInfo[m]; if (!inf) return null;
+  const duBase = diasUteis(inf.inicio, inf.ate); if (!duBase) return null;
+  const base = somaPorVend(S.fatos[m]); const f = duAte / duBase;
+  const t = new Map(); for (const [k, v] of base.t) t.set(k, v * f);
+  return {real: false, t, tot: base.tot * f, du: duAte, duBase, baseTot: base.tot};
+}
+
+function projecaoHTML(m){
+  const inf = S.mesInfo[m]; if (!inf || !inf.parcial) return {html: '', depois: null};
+  const duMes = diasUteis(inicioMes(m), fimMes(m)), duFeitos = diasUteis(inf.inicio, inf.ate), duFalta = diasUteis(isoDeNum(dayNum(inf.ate) + 1), fimMes(m));
+  if (!duFeitos) return {html: '', depois: null};
+  const folgas = folgasDoMes(m);
+  const real = somaPorVend(S.fatos[m]);
+  // referência: mês de comparação (se for um mês) ou o mês anterior
+  const idx = S.meses.indexOf(m);
+  const ref = S.cmp && isMes(S.cmp) ? S.cmp.slice(2) : (idx > 0 ? S.meses[idx - 1] : '');
+  const refS = ref ? somaPorVend(S.fatos[ref]) : null, refParcial = ref && S.mesInfo[ref].parcial;
+  const fator = duMes / duFeitos;
+  const vks = [...new Set([...real.t.keys(), ...(refS ? refS.t.keys() : [])])].sort((a, b) => (real.t.get(b) || 0) - (real.t.get(a) || 0));
+  const linha = vc => { const r = vc ? (real.t.get(vc) || 0) : real.tot; const rf = refS ? (vc ? (refS.t.get(vc) || 0) : refS.tot) : null; return {r, media: r / duFeitos, proj: r * fator, rf}; };
+  const T = linha(S.vend || null);
+  const pctDias = duFeitos / duMes * 100;
+  const refLbl = ref ? mesLabel(ref) + (refParcial ? ' (parcial)' : '') : '';
+  const html = `<div class="card proj" style="margin-top:14px">
+    <div class="card-head"><div><h2>📈 Projeção de vendas · ${mesLabel(m)}</h2>
+      <p class="sub">Dados até <b>${isoToBR(inf.ate)}</b> · <b>${duFeitos}</b> de <b>${duMes}</b> dias úteis trabalhados (faltam ${duFalta}) · ${S.vend ? esc(S.vendNome[S.vend]) : 'Todos os vendedores'}</p></div></div>
+    <div class="grid g4">
+      <div class="fact"><div class="lbl">Realizado até ${isoToBRc(inf.ate)}</div><div class="val num">${fmtBRL(T.r)}</div></div>
+      <div class="fact"><div class="lbl">Média por dia útil</div><div class="val num">${fmtBRL(T.media)}</div></div>
+      <div class="fact" style="border-color:var(--s1)"><div class="lbl">Projeção do mês</div><div class="val num" style="color:var(--s1)">${fmtBRL(T.proj)}</div></div>
+      <div class="fact"><div class="lbl">${ref ? 'Projeção vs ' + esc(refLbl) : 'Comparação'}</div><div class="val num">${T.rf != null ? deltaHTML(T.proj, T.rf) : '—'}</div>${T.rf != null ? `<div class="ccode">${esc(mesLabel(ref))}: ${fmtBRL(T.rf)}</div>` : ''}</div>
+    </div>
+    <div class="prog" title="${fmtN(T.r / (T.proj || 1) * 100, 0)}% da projeção realizado"><div class="prog-real" style="width:${Math.min(100, T.r / (T.proj || 1) * 100)}%"></div><div class="prog-mark" style="left:${pctDias}%"></div></div>
+    <div class="help" style="margin-top:4px">Barra: realizado até agora sobre a projeção. A marca mostra ${fmtN(pctDias, 0)}% dos dias úteis do mês já trabalhados.</div>
+    <div class="tbl-wrap" style="margin-top:12px"><table class="t" id="proj-tbl"><thead><tr><th>Vendedor</th><th class="r">Realizado</th><th class="r">Média por dia útil</th><th class="r">Projeção do mês</th>${ref ? `<th class="r">${esc(refLbl)}</th><th class="r">Projeção vs ${esc(mesLabel(ref))}</th>` : ''}</tr></thead><tbody>
+      ${vks.map(vc => { const x = linha(vc); return `<tr${S.vend === vc ? ' style="background:var(--surface-2)"' : ''}><td><button class="link" data-vend="${esc(vc)}">${esc(S.vendNome[vc] || vc)}</button></td><td class="r num">${fmtBRL(x.r)}</td><td class="r num">${fmtBRL(x.media)}</td><td class="r num"><b>${fmtBRL(x.proj)}</b></td>${ref ? `<td class="r num">${fmtBRL(x.rf)}</td><td class="r">${deltaHTML(x.proj, x.rf)}</td>` : ''}</tr>`; }).join('')}
+    </tbody><tfoot><tr><td><b>Total</b></td><td class="r num"><b>${fmtBRL(real.tot)}</b></td><td class="r num"><b>${fmtBRL(real.tot / duFeitos)}</b></td><td class="r num"><b>${fmtBRL(real.tot * fator)}</b></td>${ref ? `<td class="r num"><b>${fmtBRL(refS.tot)}</b></td><td class="r">${deltaHTML(real.tot * fator, refS.tot)}</td>` : ''}</tr></tfoot></table></div>
+    <p class="help" style="margin:10px 0 0">Como é calculado: realizado ÷ dias úteis trabalhados × dias úteis do mês. Contam só os dias de segunda a sexta, sem os feriados nacionais${folgas.length ? ` (neste mês: ${folgas.map(([d, n]) => `${isoToBRc(d)} ${esc(n)}`).join(', ')})` : ''}. ${isAdmin() ? 'Folgas extras (carnaval, emendas, feriado municipal) podem ser marcadas em <b>Arquivos › Calendário de dias úteis</b>.' : ''}</p>
+  </div>`;
+  return {html};
+}
+
+function comparacaoParcialHTML(m, mb){
+  const inf = S.mesInfo[m]; if (!inf || !inf.parcial || !mb || !S.mesInfo[mb]) return '';
+  const dia = +inf.ate.slice(8), ultB = lastDay(+mb.slice(0, 4), +mb.slice(5, 7));
+  const limB = `${mb}-${String(Math.min(dia, ultB)).padStart(2, '0')}`;
+  const A = somaPorVend(S.fatos[m]); const duA = diasUteis(inf.inicio, inf.ate);
+  const B = valorAte(mb, limB); if (!B || !duA) return '';
+  const vks = [...new Set([...A.t.keys(), ...B.t.keys()])].sort((x, y) => (A.t.get(y) || 0) - (A.t.get(x) || 0));
+  const val = (s, vc) => vc ? (s.t.get(vc) || 0) : s.tot;
+  const tA = val(A, S.vend || null), tB = val(B, S.vend || null);
+  const mdA = tA / duA, mdB = B.du ? tB / B.du : null;
+  const lA = `${mesLabel(m)} até ${isoToBRc(inf.ate)}`, lB = `${mesLabel(mb)} até ${isoToBRc(limB)}`;
+  return `<div class="card" style="margin-top:14px">
+    <h2>⚖ Comparação parcial · ${esc(lA)} × ${esc(lB)}</h2>
+    <p class="sub">Mesmo período dos dois meses (do dia 1 até o dia ${dia}) · ${S.vend ? esc(S.vendNome[S.vend]) : 'Todos os vendedores'}</p>
+    <div class="grid g4">
+      <div class="fact"><div class="lbl">${esc(lA)}</div><div class="val num">${fmtBRL(tA)}</div><div class="ccode">${duA} dia(s) útil(eis)</div></div>
+      <div class="fact"><div class="lbl">${esc(lB)} ${B.real ? '<span class="badge ok">real</span>' : '<span class="badge warn">estimado</span>'}</div><div class="val num">${fmtBRL(tB)}</div><div class="ccode">${B.du} dia(s) útil(eis)</div></div>
+      <div class="fact"><div class="lbl">Crescimento no período</div><div class="val num">${deltaHTML(tA, tB)}</div></div>
+      <div class="fact"><div class="lbl">Média por dia útil</div><div class="val num" style="font-size:15px">${fmtBRL(mdA)} <span class="ccode">vs ${mdB != null ? fmtBRL(mdB) : '—'}</span></div><div>${mdB ? deltaHTML(mdA, mdB) : ''}</div></div>
+    </div>
+    ${B.real ? '' : `<div class="msg info" style="margin-top:10px">${esc(mesLabel(mb))} não tem arquivo que cubra exatamente de 01/${mb.slice(5)} a ${isoToBRc(limB)}, então o valor é <b>estimado</b> pela média por dia útil do mês (${fmtBRL(B.baseTot / B.duBase)} por dia × ${B.du} dias úteis). ${isAdmin() ? `Para usar o valor real, exporte o relatório de vendas de <b>01/${mb.slice(5)}/${mb.slice(0, 4)} a ${isoToBR(limB)}</b> e carregue em Arquivos. Ele não altera o total do mês.` : ''}</div>`}
+    <div class="tbl-wrap" style="margin-top:12px"><table class="t"><thead><tr><th>Vendedor</th><th class="r">${esc(lA)}</th><th class="r">${esc(lB)}</th><th class="r">Var.</th><th class="r">Média/dia útil ${esc(mesLabel(m))}</th><th class="r">Média/dia útil ${esc(mesLabel(mb))}</th><th class="r">Var.</th></tr></thead><tbody>
+      ${vks.map(vc => { const a = val(A, vc), b = val(B, vc), ma = a / duA, mb2 = B.du ? b / B.du : 0; return `<tr${S.vend === vc ? ' style="background:var(--surface-2)"' : ''}><td><button class="link" data-vend="${esc(vc)}">${esc(S.vendNome[vc] || vc)}</button></td><td class="r num">${fmtBRL(a)}</td><td class="r num">${fmtBRL(b)}</td><td class="r">${deltaHTML(a, b)}</td><td class="r num">${fmtBRL(ma)}</td><td class="r num">${fmtBRL(mb2)}</td><td class="r">${deltaHTML(ma, mb2)}</td></tr>`; }).join('')}
+    </tbody><tfoot><tr><td><b>Total</b></td><td class="r num"><b>${fmtBRL(A.tot)}</b></td><td class="r num"><b>${fmtBRL(B.tot)}</b></td><td class="r">${deltaHTML(A.tot, B.tot)}</td><td class="r num"><b>${fmtBRL(A.tot / duA)}</b></td><td class="r num"><b>${fmtBRL(B.du ? B.tot / B.du : 0)}</b></td><td class="r">${B.du ? deltaHTML(A.tot / duA, B.tot / B.du) : ''}</td></tr></tfoot></table></div>
+    <p class="help" style="margin:10px 0 0">"Crescimento no período" compara o valor do dia 1 ao dia ${dia} nos dois meses. "Média por dia útil" desconta a diferença de dias úteis entre eles (fins de semana e feriados).</p>
+  </div>`;
+}
+
+/* ---------------- CALENDÁRIO: tela do administrador ---------------- */
+function calendarioHTML(){
+  const y = S.calAno;
+  const fer = Object.entries(feriadosNacionais(y)).sort();
+  const fac = facultativos(y);
+  const extras = Object.entries(S.cal.folgas).filter(([d]) => d.startsWith(y + '-') && !fac.some(f => f[0] === d)).sort();
+  const anos = [...new Set([...anosDisp(), String(new Date().getFullYear()), String(new Date().getFullYear() + 1)])].sort();
+  const linhaDia = d => `${isoToBR(d)} <span class="ccode">${DIAS_SEM[diaSemana(d)]}</span>`;
+  return `<div class="card" style="margin-top:14px" id="cal-card">
+    <div class="card-head"><div><h2>Calendário de dias úteis</h2><p class="sub">Usado na projeção e na comparação parcial. Contam como dias úteis: segunda a sexta, sem os feriados nacionais.</p></div>
+      <select class="i" id="cal-ano" style="width:auto">${anos.map(a => `<option ${+a === y ? 'selected' : ''}>${a}</option>`).join('')}</select></div>
+    <div class="chips">${Array.from({length: 12}, (_, i) => { const m = `${y}-${String(i + 1).padStart(2, '0')}`; return `<span class="badge gray">${MESES[i]}: ${diasUteis(inicioMes(m), fimMes(m))} dias úteis</span>`; }).join('')}</div>
+    <div class="grid g2" style="margin-top:6px">
+      <div><h3 class="h3">Feriados nacionais ${y}</h3><table class="t"><tbody>
+        ${fer.map(([d, n]) => { const fds = [0, 6].includes(diaSemana(d)); return `<tr><td>${linhaDia(d)}</td><td>${esc(n)}</td><td class="r">${fds ? '<span class="ccode">cai no fim de semana</span>' : `<label class="ccode"><input type="checkbox" data-trab="${d}" ${S.cal.trabalhados[d] ? 'checked' : ''}> trabalhamos</label>`}</td></tr>`; }).join('')}
+      </tbody></table></div>
+      <div><h3 class="h3">Pontos facultativos</h3><p class="help" style="margin:0 0 6px">Marque se a empresa <b>não</b> trabalha nesses dias.</p><table class="t"><tbody>
+        ${fac.map(([d, n]) => `<tr><td>${linhaDia(d)}</td><td>${esc(n)}</td><td class="r"><label class="ccode"><input type="checkbox" data-folga="${d}" data-desc="${esc(n)}" ${S.cal.folgas[d] ? 'checked' : ''}> folga</label></td></tr>`).join('')}
+      </tbody></table>
+      <h3 class="h3" style="margin-top:14px">Outras folgas (emendas, feriado municipal…)</h3>
+      <table class="t"><tbody>${extras.map(([d, n]) => `<tr><td>${linhaDia(d)}</td><td>${esc(n)}</td><td class="r"><button class="btn sm danger" data-rmfolga="${d}">Remover</button></td></tr>`).join('') || '<tr><td class="ccode">Nenhuma folga extra em ' + y + '.</td></tr>'}</tbody></table>
+      <div class="toolbar" style="margin-top:8px"><input class="i" type="date" id="cal-data" style="width:auto"><input class="i" id="cal-desc" placeholder="Motivo (ex.: emenda de feriado)" style="max-width:240px"><button class="btn sm" id="cal-add">Adicionar folga</button></div></div>
+    </div>
+    <div class="row-actions"><button class="btn primary" id="cal-save" disabled>Salvar calendário</button><span class="help" id="cal-msg">${S.calMeta?.enviadoEm ? 'Última alteração: ' + new Date(S.calMeta.enviadoEm).toLocaleString('pt-BR') + (S.calMeta.enviadoPor ? ' por ' + esc(S.calMeta.enviadoPor) : '') : ''}</span></div>
+  </div>`;
+}
+function ligarCalendario(){
+  const marcarSujo = () => { const b = $('#cal-save'); if (b) { b.disabled = false; $('#cal-msg').textContent = 'Alterações não salvas'; } };
+  const redesenhar = () => { const c = $('#cal-card'); if (c) { c.outerHTML = calendarioHTML(); ligarCalendario(); marcarSujo(); } };
+  $('#cal-ano')?.addEventListener('change', e => { S.calAno = +e.target.value; const c = $('#cal-card'); c.outerHTML = calendarioHTML(); ligarCalendario(); if (S.calSujo) marcarSujo(); });
+  $$('[data-trab]').forEach(cb => cb.onchange = () => { if (cb.checked) S.cal.trabalhados[cb.dataset.trab] = true; else delete S.cal.trabalhados[cb.dataset.trab]; S.calSujo = true; redesenhar(); });
+  $$('[data-folga]').forEach(cb => cb.onchange = () => { if (cb.checked) S.cal.folgas[cb.dataset.folga] = cb.dataset.desc; else delete S.cal.folgas[cb.dataset.folga]; S.calSujo = true; redesenhar(); });
+  $$('[data-rmfolga]').forEach(b => b.onclick = () => { delete S.cal.folgas[b.dataset.rmfolga]; S.calSujo = true; redesenhar(); });
+  $('#cal-add')?.addEventListener('click', () => { const d = $('#cal-data').value; if (!d) return; S.cal.folgas[d] = $('#cal-desc').value.trim() || 'Folga'; S.calAno = +d.slice(0, 4); S.calSujo = true; redesenhar(); });
+  $('#cal-save')?.addEventListener('click', async () => {
+    const b = $('#cal-save'); b.disabled = true; $('#cal-msg').textContent = 'Salvando…';
+    const meta = {tipo: 'calendario', enviadoPor: S.email, enviadoEm: new Date().toISOString()};
+    try { await S.store.saveArquivo('CALENDARIO', meta, {folgas: S.cal.folgas, trabalhados: S.cal.trabalhados}); S.calMeta = meta; S.calSujo = false; $('#cal-msg').textContent = 'Calendário salvo'; toast('Calendário salvo'); }
+    catch (e) { $('#cal-msg').textContent = erroFirebase(e); b.disabled = false; }
+  });
 }
 
 /* ---------------- VENDEDORES (comparação de venda e mix) ---------------- */
@@ -1346,6 +1528,7 @@ function renderArquivos(){
         ${sem.length ? `<div class="msg info">${sem.length} produto(s) vendido(s) estão sem grupo (aparecem como "SEM GRUPO"). Carregue o relatório de estoque atualizado: ${esc(sem.slice(0, 10).join(', '))}${sem.length > 10 ? '…' : ''}</div>` : (vend.size ? '<div class="msg ok">✓ Todos os produtos vendidos têm grupo.</div>' : '')}`
       : `<div class="msg info">O relatório de estoque ainda não foi carregado, então os grupos estão sendo <b>estimados pelo nome do produto</b>. Carregue o <b>Relatório de Análise de Estoque</b> no quadro acima para usar os grupos do seu sistema.</div>`}</div>`;
     })()}
+    ${calendarioHTML()}
     <div class="card" style="margin-top:14px"><h2>Arquivos carregados · ${lst.length}</h2><p class="sub">"Substituído" = semana que já está coberta pelo fechamento mensal (continua servindo para a data da última compra).</p>
       ${lst.length ? `<div class="tbl-wrap"><table class="t"><thead><tr><th>Tipo</th><th>Período</th><th>Mês</th><th class="r">Venda líquida</th><th class="r">Linhas</th><th>Enviado</th><th>Uso</th><th></th></tr></thead><tbody>
       ${lst.map(a => `<tr><td><span class="badge ${a.tipo === 'mensal' ? 'outro' : 'gray'}">${a.tipo === 'mensal' ? 'Mensal' : 'Semanal'}</span></td><td class="num">${isoToBR(a.inicio)} a ${isoToBR(a.fim)}</td><td>${mesLabel(a.mes)}</td><td class="r num">${fmtBRL(a.total)}</td><td class="r num">${fmtN(a.linhas)}</td><td class="ccode">${esc(a.enviadoPor || '')}<br>${a.enviadoEm ? new Date(a.enviadoEm).toLocaleString('pt-BR') : ''}</td><td>${usado(a) ? '<span class="badge ok">Em uso</span>' : '<span class="badge gray">Substituído</span>'}</td><td class="r"><button class="btn sm danger" data-del="${esc(a.id)}">Excluir</button></td></tr>`).join('')}
@@ -1364,6 +1547,7 @@ function renderArquivos(){
     catch (e) { alert(erroFirebase(e)); b.disabled = false; }
   }));
   renderPendentes();
+  ligarCalendario();
 }
 async function lerArquivos(files){
   for (const f of files) {
@@ -1411,7 +1595,7 @@ function renderPendentes(){
       ${confere === true ? `<div class="msg ok">✓ Confere com o total do relatório (${fmtBRL(p.totalRelatorio)}).</div>` : confere === false ? `<div class="msg err">A soma das linhas (${fmtBRL(p.total)}) não bate com o total do relatório (${fmtBRL(p.totalRelatorio)}). Confira o arquivo antes de salvar.</div>` : ''}
       ${existe ? `<div class="msg info">Já existe um arquivo ${p.tipo} para este período. Ao salvar, ele será <b>substituído</b>.</div>` : ''}
       ${semanasCobertas ? `<div class="msg info">Este fechamento mensal vai substituir ${semanasCobertas} arquivo(s) semanal(is) de ${mesLabel(p.mes)} no total do mês.</div>` : ''}
-      ${temMensal ? `<div class="msg info">${mesLabel(p.mes)} já tem fechamento mensal, então esta semana não entra no total do mês. Ela só atualiza a data da última compra e o gráfico semanal.</div>` : ''}
+      ${temMensal ? `<div class="msg info">${mesLabel(p.mes)} já tem fechamento mensal, então este arquivo não entra no total do mês. Ele serve para a data da última compra, o gráfico semanal e a comparação parcial (ex.: 01 a 13 do mês).</div>` : ''}
       <div class="row-actions"><button class="btn primary" data-save="${i}">Salvar no sistema</button><button class="btn" data-rm="${i}">Cancelar</button><span class="help" id="sv-${i}"></span></div>
     </div>`;
   }).join('') + (pendentes.filter(p => p.ok).length > 1 ? `<div class="row-actions"><button class="btn primary" id="save-all">Salvar todos (${pendentes.filter(p => p.ok).length})</button></div>` : '');
@@ -1493,7 +1677,9 @@ async function carregarDados(){
   $('#main').innerHTML = '<div class="loading">Carregando dados de vendas…</div>';
   const [arqs, status] = await Promise.all([S.store.listArquivos(), S.store.listStatus()]);
   S.estoqueMeta = arqs.find(a => a.tipo === 'estoque') || null;
-  S.arquivos = arqs.filter(a => a.tipo !== 'estoque'); S.status = status;
+  S.calMeta = arqs.find(a => a.tipo === 'calendario') || null;
+  S.arquivos = arqs.filter(a => a.tipo !== 'estoque' && a.tipo !== 'calendario'); S.status = status;
+  if (S.calMeta) { try { const c = await S.store.getPayload(S.calMeta.id); S.cal = {folgas: c.folgas || {}, trabalhados: c.trabalhados || {}}; } catch { S.cal = {folgas: {}, trabalhados: {}}; } }
   const pEst = S.estoqueMeta ? S.store.getPayload(S.estoqueMeta.id).then(pl => definirGrupos(pl.m)).catch(() => definirGrupos(null)) : (definirGrupos(null), null);
   await Promise.all([pEst, ...S.arquivos.map(async a => { if (!S.payloads[a.id]) S.payloads[a.id] = decode(await S.store.getPayload(a.id)); })]);
   recalcular(); ajustarMes(true);
